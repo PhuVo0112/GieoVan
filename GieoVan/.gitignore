@@ -1,0 +1,35 @@
+# 1. BẢO MẬT TỐI CAO (Security)
+.env
+.env.*
+*.pem
+*.key
+
+# 2. LOCAL DATABASE & VECTOR DB (ChromaDB)
+neon_van_db/
+*.sqlite3
+*.bin
+*.parquet
+ingest.py
+raw_data.json
+
+# 3. MÔI TRƯỜNG PYTHON & CACHE
+venv/
+.venv/
+env/
+__pycache__/
+.pytest_cache/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+.ruff_cache/
+.github
+# 4. FILE TEST CỤC BỘ (Local Test Payloads)
+payload.json
+payload_*.json
+
+# 5. IDE & OS RÁC (Editor & OS)
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

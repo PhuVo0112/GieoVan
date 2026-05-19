@@ -1,0 +1,16 @@
+[project]
+name = "gieovan"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "chromadb>=1.5.9",
+    "fastapi>=0.136.1",
+    "google-genai>=2.4.0",
+    "langdetect>=1.0.9",
+    "pronouncing>=0.3.0",
+    "pydantic>=2.13.4",
+    "python-dotenv>=1.2.2",
+    "uvicorn>=0.47.0",
+]

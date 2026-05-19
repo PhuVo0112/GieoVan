@@ -1,0 +1,393 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Gieo Vần - Nàng Thơ</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;1,400&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg-paper: #f4ece6;
+        --bg-card: #ffffff;
+        --text-main: #4e342e;
+        --text-muted: #8d6e63;
+        --accent-color: #bcaaa4;
+        --border-color: #d7ccc8;
+      }
+
+      body {
+        background-color: var(--bg-paper);
+        color: var(--text-main);
+        font-family: "Lora", "Times New Roman", serif;
+        display: flex;
+        justify-content: center;
+        padding: 50px 20px;
+        margin: 0;
+        line-height: 1.6;
+      }
+
+      .container {
+        width: 100%;
+        max-width: 650px;
+        background: var(--bg-card);
+        padding: 40px;
+        border-radius: 8px;
+        box-shadow: 0 10px 30px rgba(78, 52, 46, 0.08);
+        border: 1px solid var(--border-color);
+        position: relative; /* Để đặt nút language góc phải */
+      }
+
+      /* Nút chuyển đổi ngôn ngữ */
+      .lang-toggle {
+        position: absolute;
+        top: 20px;
+        right: 20px;
+        background: transparent;
+        border: 1px solid var(--text-muted);
+        color: var(--text-muted);
+        padding: 4px 10px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-family: "Lora", serif;
+        font-size: 13px;
+        transition: all 0.3s ease;
+      }
+      .lang-toggle:hover {
+        background: var(--text-muted);
+        color: #ffffff;
+      }
+
+      h1 {
+        color: var(--text-main);
+        text-align: center;
+        font-size: 28px;
+        font-weight: 600;
+        letter-spacing: 1px;
+        margin-top: 0;
+        margin-bottom: 10px;
+      }
+
+      .subtitle {
+        text-align: center;
+        color: var(--text-muted);
+        font-style: italic;
+        margin-bottom: 30px;
+        font-size: 14px;
+        border-bottom: 1px solid var(--border-color);
+        padding-bottom: 20px;
+      }
+
+      .input-group {
+        margin-bottom: 25px;
+      }
+
+      textarea {
+        width: 100%;
+        height: 120px;
+        background: #faf8f5;
+        color: var(--text-main);
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        padding: 15px;
+        font-size: 16px;
+        font-family: "Lora", serif;
+        resize: vertical;
+        box-sizing: border-box;
+        outline: none;
+        transition: all 0.3s ease;
+      }
+
+      textarea:focus {
+        border-color: var(--text-muted);
+        background: #ffffff;
+        box-shadow: 0 0 0 3px rgba(141, 110, 99, 0.1);
+      }
+
+      textarea::placeholder {
+        color: #bcaaa4;
+        font-style: italic;
+      }
+
+      .btn-group {
+        display: flex;
+        gap: 15px;
+      }
+
+      button.action-btn {
+        flex: 1;
+        background: #ffffff;
+        color: var(--text-main);
+        border: 1px solid var(--text-muted);
+        border-radius: 4px;
+        padding: 12px;
+        font-size: 15px;
+        font-family: "Lora", serif;
+        cursor: pointer;
+        transition: all 0.3s ease;
+      }
+
+      button.action-btn:hover {
+        background: var(--text-muted);
+        color: #ffffff;
+      }
+
+      button.btn-primary {
+        background: var(--text-main);
+        color: #ffffff;
+        border-color: var(--text-main);
+      }
+
+      button.btn-primary:hover {
+        background: #3e2723;
+      }
+
+      .output-box {
+        margin-top: 35px;
+        padding: 20px;
+        background: #faf8f5;
+        border-radius: 6px;
+        border: 1px dashed var(--border-color);
+        min-height: 80px;
+      }
+
+      .output-title {
+        font-weight: 600;
+        color: var(--text-main);
+        margin-bottom: 15px;
+        font-size: 18px;
+        border-bottom: 1px dotted var(--border-color);
+        padding-bottom: 8px;
+        display: inline-block;
+      }
+
+      .result-item {
+        margin-bottom: 12px;
+        padding: 12px 15px;
+        background: #ffffff;
+        border-radius: 4px;
+        border-left: 3px solid var(--text-muted);
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.02);
+        font-size: 15.5px;
+      }
+
+      .highlight {
+        color: #d84315;
+        font-weight: 600;
+      }
+
+      .loading {
+        display: none;
+        text-align: center;
+        color: var(--text-muted);
+        font-style: italic;
+        margin-top: 20px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <button class="lang-toggle" id="langBtn" onclick="toggleLanguage()">
+        EN
+      </button>
+
+      <h1 id="ui-title">Gieo Vần Thơ Ca</h1>
+      <div class="subtitle" id="ui-subtitle">
+        "Nơi những vần điệu tìm thấy sự đồng điệu của tâm hồn"
+      </div>
+
+      <div class="input-group">
+        <textarea
+          id="lyricInput"
+          placeholder="Chắp bút viết một câu thơ...&#10;Ví dụ: Anh bước đi trong bóng tối cuộc đời"
+        ></textarea>
+      </div>
+
+      <div class="btn-group">
+        <button
+          class="action-btn"
+          id="ui-btn-analyze"
+          onclick="analyzeLyrics(event)"
+        >
+          Phân Tích Ngữ Âm
+        </button>
+        <button
+          class="action-btn btn-primary"
+          id="ui-btn-generate"
+          onclick="generateLyrics(event)"
+        >
+          Chắp Bút Sinh Câu
+        </button>
+      </div>
+
+      <div id="loadingIndicator" class="loading">
+        Đang lắng nghe tiếng vọng từ hệ thống...
+      </div>
+
+      <div class="output-box" id="outputArea">
+        <p
+          id="ui-empty-out"
+          style="
+            color: #a1887f;
+            font-style: italic;
+            text-align: center;
+            margin: 0;
+          "
+        >
+          Trang giấy trắng đang chờ nét mực của bạn.
+        </p>
+      </div>
+    </div>
+
+    <script>
+      const API_URL = "http://localhost:8000/api";
+      let currentLang = "vi";
+
+      // Từ điển Đa ngôn ngữ
+      const i18n = {
+        vi: {
+          title: "Gieo Vần Thơ Ca",
+          subtitle: '"Nơi những vần điệu tìm thấy sự đồng điệu của tâm hồn"',
+          placeholder:
+            "Chắp bút viết một câu thơ...\nVí dụ: Anh bước đi trong bóng tối cuộc đời",
+          btnAnalyze: "Phân Tích Ngữ Âm",
+          btnGenerate: "Chắp Bút Sinh Câu",
+          loading: "Đang lắng nghe tiếng vọng từ hệ thống...",
+          emptyOut: "Trang giấy trắng đang chờ nét mực của bạn.",
+          alertEmpty: "Xin hãy để lại đôi dòng trước khi thực hiện!",
+          lastWord: "Từ hạ bút",
+          rhymeDet: "Vần bắt được",
+          suggestVibe: "Gợi ý từ văn phong:",
+          museReply: "Nàng thơ họa lại:",
+          errConn: "Lỗi kết nối đứt đoạn. Xin kiểm tra lại Backend.",
+          toggleText: "EN",
+        },
+        en: {
+          title: "Poetry & Rhymes",
+          subtitle: '"Where rhymes find the harmony of the soul"',
+          placeholder:
+            "Pen down a line of poetry...\nExample: Walking alone in the dark of night",
+          btnAnalyze: "Analyze Phonetics",
+          btnGenerate: "Generate Lines",
+          loading: "Listening to the echoes of the system...",
+          emptyOut: "A blank page awaits your ink.",
+          alertEmpty: "Please leave a few lines before proceeding!",
+          lastWord: "Last word",
+          rhymeDet: "Detected rhyme",
+          suggestVibe: "Stylistic suggestions:",
+          museReply: "The muse replies:",
+          errConn: "Connection lost. Please check the Backend.",
+          toggleText: "VI",
+        },
+      };
+
+      function toggleLanguage() {
+        currentLang = currentLang === "vi" ? "en" : "vi";
+        updateUI();
+      }
+
+      function updateUI() {
+        const t = i18n[currentLang];
+
+        document.getElementById("ui-title").innerText = t.title;
+        document.getElementById("ui-subtitle").innerText = t.subtitle;
+        document.getElementById("lyricInput").placeholder = t.placeholder;
+        document.getElementById("ui-btn-analyze").innerText = t.btnAnalyze;
+        document.getElementById("ui-btn-generate").innerText = t.btnGenerate;
+        document.getElementById("loadingIndicator").innerText = t.loading;
+        document.getElementById("langBtn").innerText = t.toggleText;
+
+        // Trả lại trạng thái trống nếu đang không có kết quả
+        const outputArea = document.getElementById("outputArea");
+        if (
+          outputArea.innerHTML.includes("ui-empty-out") ||
+          outputArea.innerText.trim() === i18n["vi"].emptyOut ||
+          outputArea.innerText.trim() === i18n["en"].emptyOut
+        ) {
+          outputArea.innerHTML = `<p id="ui-empty-out" style="color: #a1887f; font-style: italic; text-align: center; margin: 0;">${t.emptyOut}</p>`;
+        } else {
+          // Xóa output cũ khi đổi ngôn ngữ để tránh hiển thị song ngữ lộn xộn
+          outputArea.innerHTML = `<p id="ui-empty-out" style="color: #a1887f; font-style: italic; text-align: center; margin: 0;">${t.emptyOut}</p>`;
+        }
+      }
+
+      async function analyzeLyrics(event) {
+        if (event) event.preventDefault();
+
+        const text = document.getElementById("lyricInput").value;
+        const t = i18n[currentLang];
+
+        if (!text.trim()) return alert(t.alertEmpty);
+
+        toggleLoading(true);
+        try {
+          const res = await fetch(`${API_URL}/analyze-and-suggest`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              text: text,
+              mood: "all",
+              lang: currentLang,
+            }),
+          });
+          const data = await res.json();
+
+          let html = `<p>${t.lastWord}: <span class="highlight">${data.analysis.last_word}</span> | ${t.rhymeDet}: <span class="highlight">${data.analysis.detected_rhyme}</span></p>`;
+          html += `<div class="output-title">${t.suggestVibe}</div>`;
+          data.contextual_suggestions.forEach((item) => {
+            html += `<div class="result-item">${item.text}</div>`;
+          });
+
+          document.getElementById("outputArea").innerHTML = html;
+        } catch (err) {
+          document.getElementById("outputArea").innerHTML =
+            `<p style="color: #d84315; text-align: center;">${t.errConn}</p>`;
+        }
+        toggleLoading(false);
+      }
+
+      async function generateLyrics(event) {
+        if (event) event.preventDefault();
+
+        const text = document.getElementById("lyricInput").value;
+        const t = i18n[currentLang];
+
+        if (!text.trim()) return alert(t.alertEmpty);
+
+        toggleLoading(true);
+        try {
+          const res = await fetch(`${API_URL}/generate-next-lines`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              text: text,
+              mood: "melancholic",
+              count: 3,
+              lang: currentLang,
+            }),
+          });
+          const data = await res.json();
+
+          let html = `<div class="output-title">${t.museReply}</div>`;
+          data.suggestions.forEach((line) => {
+            html += `<div class="result-item">${line}</div>`;
+          });
+
+          document.getElementById("outputArea").innerHTML = html;
+        } catch (err) {
+          document.getElementById("outputArea").innerHTML =
+            `<p style="color: #d84315; text-align: center;">${t.errConn}</p>`;
+        }
+        toggleLoading(false);
+      }
+
+      function toggleLoading(show) {
+        document.getElementById("loadingIndicator").style.display = show
+          ? "block"
+          : "none";
+      }
+    </script>
+  </body>
+</html>
