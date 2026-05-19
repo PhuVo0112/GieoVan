@@ -242,7 +242,7 @@
     </div>
 
     <script>
-      const API_URL = "https://gieovan.onrender.com/";
+      const API_URL = "http://localhost:8000/api";
       let currentLang = "vi";
 
       // Từ điển Đa ngôn ngữ
@@ -326,6 +326,7 @@
           const res = await fetch(`${API_URL}/analyze-and-suggest`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ text: text, mood: "all" }),
             body: JSON.stringify({
               text: text,
               mood: "all",
@@ -361,6 +362,7 @@
           const res = await fetch(`${API_URL}/generate-next-lines`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ text: text, mood: "melancholic", count: 3 }),
             body: JSON.stringify({
               text: text,
               mood: "melancholic",
