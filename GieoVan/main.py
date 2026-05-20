@@ -118,6 +118,7 @@ class RhymeAnalyzer:
         match = re.search(f'[{vowels}]+.*$', word)
         if match:
             return RhymeAnalyzer.remove_vietnamese_tones(match.group(0))
+            return match.group(0)
         return word
         
     @staticmethod
@@ -285,27 +286,38 @@ async def generate_next_lines(input_data: GenerateInput) -> GenerateResponse:
     # 3. Thiết kế System Instruction và cấu hình sinh JSON
     if lang == 'en':
         context_str = "\n".join(context_docs) if context_docs else "No reference context available."
+        if input_data.mood == 'melancholic':
+            persona = "a profound US/UK Poet and Contemporary Lyricist who writes soulful, elegant, and deep verses."
+        else:
+            persona = "a Senior US/UK Rapper and Lyricist who writes sharp, rhythmic street-smart verses."
+            
         sys_instruct = (
-            "You are a Senior US/UK Rapper and Lyricist. Your task is to write the next lines of rap/poetry "
+            f"You are {persona} Your task is to write the next lines of rap/poetry "
             "based on the user's last line and the provided reference context.\n"
             f"Mandatory requirements:\n"
             f"- Generate exactly {input_data.count} next lines.\n"
             f"- The end rhyme of each line must perfectly match the phonetic sound: '{extracted_rhyme}'.\n"
             f"- The mood of the lines must be: {input_data.mood}.\n"
             f"- The syllable count for each line should be approximately: {syllables_count} syllables.\n"
+            "- The generated lines MUST logically flow from the user's current line, maintaining a consistent theme, imagery, and emotional tone. Avoid using overly cliché or randomly violent words unless explicitly requested by the mood.\n"
             "- Return ONLY valid JSON according to the requested schema."
         )
         prompt = f"Current line:\n{last_line}\n\nReference context:\n{context_str}\n\nPlease generate {input_data.count} next lines."
     else:
         context_str = "\n".join(context_docs) if context_docs else "Không có ngữ cảnh tham khảo."
+        if input_data.mood == 'melancholic':
+            persona = "một Nhà thơ và Nhạc sĩ chuyên nghiệp, viết những câu từ sâu lắng, nhẹ nhàng, giàu hình ảnh và nhịp điệu."
+        else:
+            persona = "một Rapper Senior người Việt, viết những câu rap sắc sảo, gieo vần điêu luyện."
+            
         sys_instruct = (
-            "Bạn là một Rapper và Nhà thơ Senior người Việt. Nhiệm vụ của bạn là viết tiếp các câu rap/thơ "
-            "dựa trên câu cuối cùng của người dùng và ngữ cảnh tham khảo.\n"
-            f"Yêu cầu bắt buộc:\n"
+            "Bạn là một Nhà thơ và Nhạc sĩ chuyên nghiệp người Việt, viết những câu từ sâu lắng, nhẹ nhàng, giàu hình ảnh.\n"
+            "Nhiệm vụ của bạn là viết tiếp các câu thơ/rap dựa trên câu cuối cùng của người dùng.\n"
+            "Yêu cầu bắt buộc:\n"
             f"- Sinh ra chính xác {input_data.count} câu tiếp theo.\n"
-            f"- Vần kết thúc (end_rhyme) của mỗi câu phải khớp với âm: '{extracted_rhyme}'.\n"
+            f"- Vần kết thúc (end_rhyme) của mỗi câu PHẢI hiệp vần hoàn toàn với từ '{last_word}' (có phần vần gốc là '{extracted_rhyme}'). Ví dụ nếu từ gốc là 'thể', các câu tiếp theo phải kết thúc bằng các từ cùng vần và thanh điệu như: dễ, bể, kể, lệ, thế, dế... Tuyệt đối không gieo lệch sang vần khác.\n"
             f"- Cảm xúc (mood) của câu: {input_data.mood}.\n"
-            f"- Số lượng âm tiết (syllables) mỗi câu xấp xỉ: {syllables_count} từ.\n"
+            f"- Số lượng âm tiết mỗi câu xấp xỉ: {syllables_count} từ.\n"
             "- Chỉ trả về JSON thuần túy theo schema yêu cầu."
         )
         prompt = f"Câu hiện tại:\n{last_line}\n\nNgữ cảnh tham khảo:\n{context_str}\n\nHãy sinh ra {input_data.count} câu tiếp theo."
@@ -322,7 +334,12 @@ async def generate_next_lines(input_data: GenerateInput) -> GenerateResponse:
                 temperature=0.7
             )
         )
+        
         return GenerateResponse.model_validate_json(response.text)
     except Exception as e:
         logger.error(f"Gemini API generation failed: {str(e)}", exc_info=True)
-        return GenerateResponse(suggestions=[])
+        error_str = str(e)
+        if "429" in error_str or "RESOURCE_EXHAUSTED" in error_str:
+            raise HTTPException(status_code=429, detail="Giới hạn gọi AI đã hết (API Rate Limit). Vui lòng đợi khoảng 1 phút rồi thử lại.")
+            
+        raise HTTPException(status_code=500, detail="Hệ thống AI đang tạm thời gián đoạn. Vui lòng thử lại sau.")
