@@ -1,26 +1,37 @@
 import re
+import os
 import logging
 import pronouncing
 from langdetect import detect
 from typing import Optional, List, Dict, Any
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 import chromadb
 from google import genai
 from google.genai import types
-import os
 from dotenv import load_dotenv
+from contextlib import asynccontextmanager
 
-# Đọc file .env và bơm vào hệ thống NGAY LẬP TỨC khi code vừa chạy
-load_dotenv()
+import os
+_BASE_DIR_BOOT = os.path.dirname(os.path.abspath(__file__))
+load_dotenv(dotenv_path=os.path.abspath(os.path.join(_BASE_DIR_BOOT, "..", "..", ".env")))
 
-app = FastAPI()
+from sqlmodel import Session
+from backend.database.db import init_db, get_session
+from backend.app.models import Poem
 
-# Thêm middleware để mở cổng cho Frontend gọi API thoải mái
+BASE_DIR = _BASE_DIR_BOOT
+FRONTEND_DIR = os.path.abspath(os.path.join(BASE_DIR, "../frontend"))
+
+
+app = FastAPI(title="GieoVần API")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # Cho phép mọi domain gọi vào (sau này deploy có thể đổi thành link Vercel)
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -29,15 +40,30 @@ app.add_middleware(
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
-# Kết nối duy nhất đến thư mục database trong dự án GieoVan
-chroma_client = chromadb.PersistentClient(path="./neon_van_db")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    try:
+        init_db()
+    except Exception as e:
+        logger.error(f"Failed to initialize database: {e}", exc_info=True)
+    yield
+
+app = FastAPI(lifespan=lifespan)
+
+# Kết nối duy nhất đến thư mục database trong dự án GieoVan bằng đường dẫn tuyệt đối
+chroma_client = chromadb.PersistentClient(path=os.path.join(BASE_DIR, "neon_van_db"))
 collection = chroma_client.get_or_create_collection(name="vietnamese_lyrics")
 
-# Khởi tạo Gemini Client (sẽ tự động đọc GEMINI_API_KEY từ biến môi trường)
-try:
-    gemini_client = genai.Client()
-except Exception as e:
-    logger.warning(f"Could not initialize Gemini Client: {e}")
+# Khởi tạo Gemini Client chỉ khi biến môi trường GEMINI_API_KEY đã được thiết lập.
+# Việc này ngăn ngừa lỗi AttributeError khi Garbage Collector giải phóng client khởi tạo dở dang (do thiếu API key).
+if os.environ.get("GEMINI_API_KEY"):
+    try:
+        gemini_client = genai.Client()
+    except Exception as e:
+        logger.error(f"Failed to initialize Gemini Client: {e}")
+        gemini_client = None
+else:
+    logger.warning("GEMINI_API_KEY is not set in the environment. Gemini Client will not be initialized.")
     gemini_client = None
 
 class LyricsInput(BaseModel):
@@ -118,7 +144,6 @@ class RhymeAnalyzer:
         match = re.search(f'[{vowels}]+.*$', word)
         if match:
             return RhymeAnalyzer.remove_vietnamese_tones(match.group(0))
-            return match.group(0)
         return word
         
     @staticmethod
@@ -214,6 +239,7 @@ async def analyze_and_suggest(input_data: LyricsInput):
         "contextual_suggestions": []
     }
     
+    seen_texts = set()
     if rag_results.get("documents") and rag_results["documents"][0]:
         documents = rag_results["documents"][0]
         metas = rag_results["metadatas"][0] if rag_results.get("metadatas") and rag_results["metadatas"][0] else [{}] * len(documents)
@@ -221,6 +247,9 @@ async def analyze_and_suggest(input_data: LyricsInput):
         for doc, meta in zip(documents, metas):
             if lang == 'en' and RhymeAnalyzer.is_vietnamese(doc):
                 continue
+            if doc in seen_texts:
+                continue
+            seen_texts.add(doc)
             response["contextual_suggestions"].append({
                 "text": doc,
                 "rhyme": meta.get("end_rhyme"),
@@ -273,9 +302,13 @@ async def generate_next_lines(input_data: GenerateInput) -> GenerateResponse:
         context_docs = []
 
     filtered_context_docs = []
+    seen_context = set()
     for doc in context_docs:
         if lang == 'en' and RhymeAnalyzer.is_vietnamese(doc):
             continue
+        if doc in seen_context:
+            continue
+        seen_context.add(doc)
         filtered_context_docs.append(doc)
     context_docs = filtered_context_docs
 
@@ -322,24 +355,70 @@ async def generate_next_lines(input_data: GenerateInput) -> GenerateResponse:
         )
         prompt = f"Câu hiện tại:\n{last_line}\n\nNgữ cảnh tham khảo:\n{context_str}\n\nHãy sinh ra {input_data.count} câu tiếp theo."
     
-    # 4. Gọi Gemini API an toàn bằng đồng bộ
-    try:
-        response = gemini_client.models.generate_content(
-            model='gemini-2.5-flash',
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                system_instruction=sys_instruct,
-                response_mime_type="application/json",
-                response_schema=GenerateResponse,
-                temperature=0.7
+    # 4. Gọi Gemini API an toàn bằng đồng bộ với cơ chế tự động thử lại (Retry)
+    import time
+    max_retries = 3
+    retry_delay = 1.0  # giây
+    
+    for attempt in range(max_retries):
+        try:
+            response = gemini_client.models.generate_content(
+                model='gemini-2.5-flash',
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    system_instruction=sys_instruct,
+                    response_mime_type="application/json",
+                    response_schema=GenerateResponse,
+                    temperature=0.7
+                )
             )
-        )
-        
-        return GenerateResponse.model_validate_json(response.text)
-    except Exception as e:
-        logger.error(f"Gemini API generation failed: {str(e)}", exc_info=True)
-        error_str = str(e)
-        if "429" in error_str or "RESOURCE_EXHAUSTED" in error_str:
-            raise HTTPException(status_code=429, detail="Giới hạn gọi AI đã hết (API Rate Limit). Vui lòng đợi khoảng 1 phút rồi thử lại.")
+            return GenerateResponse.model_validate_json(response.text)
+        except Exception as e:
+            error_str = str(e)
+            # Kiểm tra xem có phải các lỗi tạm thời (mạng, giới hạn tần suất, quá tải máy chủ) không
+            is_temporary_error = any(code in error_str for code in ["503", "500", "429", "UNAVAILABLE", "RESOURCE_EXHAUSTED"])
             
-        raise HTTPException(status_code=500, detail="Hệ thống AI đang tạm thời gián đoạn. Vui lòng thử lại sau.")
+            if is_temporary_error and attempt < max_retries - 1:
+                logger.warning(
+                    f"Gemini API returned temporary error (attempt {attempt + 1}/{max_retries}): {error_str}. "
+                    f"Retrying in {retry_delay}s..."
+                )
+                time.sleep(retry_delay)
+                retry_delay *= 2  # Exponential backoff
+                continue
+                
+            logger.error(f"Gemini API generation failed permanently after {attempt + 1} attempts: {error_str}", exc_info=True)
+            if "429" in error_str or "RESOURCE_EXHAUSTED" in error_str:
+                raise HTTPException(status_code=429, detail="Giới hạn gọi AI đã hết (API Rate Limit). Vui lòng đợi khoảng 1 phút rồi thử lại.")
+            elif "503" in error_str or "UNAVAILABLE" in error_str:
+                raise HTTPException(status_code=503, detail="Hệ thống AI của Gemini hiện đang quá tải (503 Service Unavailable). Xin vui lòng thử lại sau vài giây.")
+                
+            raise HTTPException(status_code=500, detail="Hệ thống AI đang tạm thời gián đoạn. Vui lòng thử lại sau.")
+
+class PoemCreate(BaseModel):
+    content: str
+
+@app.post("/api/poems")
+async def create_poem(poem_data: PoemCreate, db: Session = Depends(get_session)):
+    try:
+        new_poem = Poem(content=poem_data.content)
+        db.add(new_poem)
+        db.commit()
+        db.refresh(new_poem)
+        return {"status": "success", "id": new_poem.id, "content": new_poem.content, "created_at": new_poem.created_at.isoformat()}
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Failed to save poem to database: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Không thể lưu bài thơ vào cơ sở dữ liệu.")
+
+# 5. Route Root trả về trang chủ index.html từ thư mục pages/ mới
+@app.get("/")
+async def read_root():
+    return FileResponse(os.path.join(FRONTEND_DIR, "pages", "index.html"))
+
+# 6. Mount giao diện trỏ đến FRONTEND_DIR phục vụ file tĩnh
+# Mount tại /static theo chuẩn
+app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="static")
+
+# Mount tại root / ở cuối cùng để hỗ trợ gọi trực tiếp style.css, logo.png từ index.html
+app.mount("/", StaticFiles(directory=FRONTEND_DIR), name="frontend")

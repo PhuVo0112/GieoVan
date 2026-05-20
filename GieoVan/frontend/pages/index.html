@@ -4,12 +4,12 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Gieo Vần - Thơ Ca</title>
-    <link rel="icon" type="image/png" href="logo.png?v=3" />
+    <link rel="icon" type="image/png" href="../logo.png?v=3" />
     <link
       href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;1,400&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="style.css" />
+    <link rel="stylesheet" href="../style.css" />
   </head>
   <body>
     <div class="container">
@@ -202,8 +202,20 @@
           const data = await res.json();
 
           let html = `<div class="output-title">${t.museReply}</div>`;
-          data.suggestions.forEach((line) => {
-            html += `<div class="result-item">${line}</div>`;
+          data.suggestions.forEach((line, index) => {
+            const safeId = `poem-save-btn-${Date.now()}-${index}`;
+            const escapedContent = line.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+            html += `
+              <div class="result-item" style="display: flex; justify-content: space-between; align-items: center; gap: 12px;">
+                <span style="flex: 1;">${line}</span>
+                <button
+                  id="${safeId}"
+                  class="save-poem-btn"
+                  onclick="savePoem(this, '${escapedContent}')"
+                  style="flex-shrink: 0; background: transparent; border: 1px solid var(--text-muted); color: var(--text-muted); padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 12px; font-family: 'Lora', 'Inter', sans-serif; transition: all 0.3s ease; white-space: nowrap;"
+                >Lưu lại</button>
+              </div>
+            `;
           });
 
           document.getElementById("outputArea").innerHTML = html;
@@ -212,6 +224,43 @@
             `<p style="color: #d84315; text-align: center;">${t.errConn}</p>`;
         }
         toggleLoading(false);
+      }
+
+      async function savePoem(btn, content) {
+        const originalText = btn.innerText;
+        btn.innerText = "...";
+        btn.disabled = true;
+        btn.style.opacity = "0.6";
+        btn.style.cursor = "not-allowed";
+
+        try {
+          const res = await fetch(`${API_URL}/poems`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ content: content }),
+          });
+
+          if (res.ok) {
+            btn.innerText = "✓ Đã lưu";
+            btn.style.opacity = "1";
+            btn.style.backgroundColor = "var(--text-muted)";
+            btn.style.color = "#ffffff";
+            btn.style.borderColor = "var(--text-muted)";
+          } else {
+            const errData = await res.json().catch(() => ({}));
+            btn.innerText = originalText;
+            btn.disabled = false;
+            btn.style.opacity = "1";
+            btn.style.cursor = "pointer";
+            alert("Lưu thất bại: " + (errData.detail || "Lỗi hệ thống"));
+          }
+        } catch (err) {
+          btn.innerText = originalText;
+          btn.disabled = false;
+          btn.style.opacity = "1";
+          btn.style.cursor = "pointer";
+          alert("Lỗi kết nối server. Vui lòng kiểm tra backend đang chạy.");
+        }
       }
 
       function toggleLoading(show) {

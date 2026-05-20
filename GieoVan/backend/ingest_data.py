@@ -1,10 +1,18 @@
 import re
 import uuid
+import os
+import sys
 import chromadb
 from chromadb.utils.embedding_functions import DefaultEmbeddingFunction
 
-# 1. Khởi tạo ChromaDB Client (Persistent - Lưu trữ vật lý xuống đĩa)
-chroma_client = chromadb.PersistentClient(path="./neon_van_db")
+# Đảm bảo in ký tự tiếng Việt ra console trên Windows không bị lỗi UnicodeEncodeError
+if sys.platform.startswith('win'):
+    sys.stdout.reconfigure(encoding='utf-8')
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# 1. Khởi tạo ChromaDB Client (Persistent - Lưu trữ vật lý xuống đĩa) bằng đường dẫn tuyệt đối
+chroma_client = chromadb.PersistentClient(path=os.path.join(BASE_DIR, "neon_van_db"))
 embedding_fn = DefaultEmbeddingFunction()
 collection = chroma_client.get_or_create_collection(
     name="vietnamese_lyrics", 
