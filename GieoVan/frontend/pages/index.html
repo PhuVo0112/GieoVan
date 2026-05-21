@@ -13,6 +13,7 @@
   </head>
   <body>
     <div class="container">
+      <div class="auth-status-container" id="authStatusArea" style="position: absolute; top: 20px; left: 20px; font-size: 13.5px; font-family: 'Lora', 'Inter', sans-serif; color: var(--text-muted);"></div>
       <button class="lang-toggle" id="langBtn" onclick="toggleLanguage()">
         EN
       </button>
@@ -24,13 +25,17 @@
           <p id="ui-subtitle" class="banner-tagline">
             "Nơi những vần điệu tìm thấy sự đồng điệu của tâm hồn"
           </p>
-        </div>
-      </header>
+      <nav class="nav-tabs" style="display: flex; gap: 20px; justify-content: center; margin-bottom: 30px; border-bottom: 1px solid var(--border-color); padding-bottom: 15px; font-family: 'Lora', 'Inter', sans-serif; font-size: 15px;">
+        <a href="/" id="navTabWrite" style="color: var(--text-main); font-weight: 600; text-decoration: none; border-bottom: 2px solid var(--text-main); padding-bottom: 5px;">Chắp Bút Làm Thơ</a>
+        <a href="/feed" id="navTabFeed" style="color: var(--text-muted); font-weight: 500; text-decoration: none; padding-bottom: 5px; transition: color 0.3s ease;">Bảng Tin Thơ Ca</a>
+        <a href="/archive" id="navTabArchive" style="display: none; color: var(--text-muted); font-weight: 500; text-decoration: none; padding-bottom: 5px; transition: color 0.3s ease;">Góc của tôi</a>
+      </nav>
 
       <div class="input-group">
         <textarea
           id="lyricInput"
           placeholder="Chắp bút viết một câu thơ...&#10;Ví dụ: Anh bước đi trong bóng tối cuộc đời"
+          oninput="updateArchiveButtonVisibility()"
         ></textarea>
       </div>
 
@@ -68,11 +73,24 @@
           Trang giấy trắng đang chờ nét mực của bạn.
         </p>
       </div>
+
+      <div id="archiveBtnContainer" style="text-align: right; margin-top: 15px;">
+        <button
+          id="archivePoemBtn"
+          disabled
+          onclick="saveArchive(this)"
+          onmouseover="if(!this.disabled){this.style.background='var(--text-main)'; this.style.color='#ffffff';}"
+          onmouseout="if(!this.disabled){this.style.background='transparent'; this.style.color='var(--text-main)';}"
+          style="background: transparent; border: 1px solid var(--text-muted); color: var(--text-muted); padding: 8px 20px; border-radius: 4px; cursor: not-allowed; font-size: 14.5px; font-family: 'Lora', 'Inter', sans-serif; font-weight: 600; opacity: 0.4; transition: all 0.3s ease; pointer-events: none;"
+        >
+          Cất Vào Kho
+        </button>
+      </div>
     </div>
 
     <script>
       const API_URL = "http://localhost:8000/api";
-      let currentLang = "vi";
+      let currentLang = localStorage.getItem("preferred_lang") || "vi";
 
       // Từ điển Đa ngôn ngữ
       const i18n = {
@@ -92,6 +110,20 @@
           museReply: "Nhà thơ đáp lại:",
           errConn: "Lỗi kết nối đứt đoạn. Xin kiểm tra lại Backend.",
           toggleText: "EN",
+          tabWrite: "Chắp Bút Làm Thơ",
+          tabFeed: "Bảng Tin Thơ Ca",
+          tabArchive: "Góc của tôi",
+          login: "Đăng nhập",
+          register: "Đăng ký",
+          logout: "Đăng xuất",
+          welcome: "Chào",
+          btnSave: "Lưu lại",
+          btnSaved: "✓ Đã lưu",
+          errSaveFail: "Lưu thất bại: ",
+          errServerConn: "Lỗi kết nối server. Vui lòng kiểm tra backend đang chạy.",
+          btnArchive: "Cất Vào Kho",
+          toastSaved: "Đã cất bài thơ vào Góc của tôi ở chế độ riêng tư",
+          errNeedLogin: "Vui lòng đăng nhập để cất bài thơ vào kho lưu trữ."
         },
         en: {
           title: "Poetry & Rhymes",
@@ -109,11 +141,26 @@
           museReply: "The muse replies:",
           errConn: "Connection lost. Please check the Backend.",
           toggleText: "VI",
+          tabWrite: "Compose Poetry",
+          tabFeed: "Poetry Feed",
+          tabArchive: "My Archive",
+          login: "Log In",
+          register: "Sign Up",
+          logout: "Log Out",
+          welcome: "Welcome",
+          btnSave: "Save",
+          btnSaved: "✓ Saved",
+          errSaveFail: "Save failed: ",
+          errServerConn: "Server connection error. Please verify backend is running.",
+          btnArchive: "Store in Archive",
+          toastSaved: "Stored the poem in My Archive in private mode",
+          errNeedLogin: "Please log in to store the poem in your archive."
         },
       };
 
       function toggleLanguage() {
         currentLang = currentLang === "vi" ? "en" : "vi";
+        localStorage.setItem("preferred_lang", currentLang);
         updateUI();
       }
 
@@ -127,6 +174,17 @@
         document.getElementById("ui-btn-generate").innerText = t.btnGenerate;
         document.getElementById("loadingIndicator").innerText = t.loading;
         document.getElementById("langBtn").innerText = t.toggleText;
+        document.getElementById("navTabWrite").innerText = t.tabWrite;
+        document.getElementById("navTabFeed").innerText = t.tabFeed;
+        document.getElementById("navTabArchive").innerText = t.tabArchive;
+
+        const archivePoemBtn = document.getElementById("archivePoemBtn");
+        if (archivePoemBtn) {
+          archivePoemBtn.innerText = t.btnArchive;
+        }
+
+        // Cập nhật lại thanh chào người dùng theo ngôn ngữ mới
+        checkAuth();
 
         // Trả lại trạng thái trống nếu đang không có kết quả
         const outputArea = document.getElementById("outputArea");
@@ -140,6 +198,8 @@
           // Xóa output cũ khi đổi ngôn ngữ để tránh hiển thị song ngữ lộn xộn
           outputArea.innerHTML = `<p id="ui-empty-out" style="color: #a1887f; font-style: italic; text-align: center; margin: 0;">${t.emptyOut}</p>`;
         }
+        
+        updateArchiveButtonVisibility();
       }
 
       async function analyzeLyrics(event) {
@@ -155,7 +215,6 @@
           const res = await fetch(`${API_URL}/analyze-and-suggest`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ text: text, mood: "all" }),
             body: JSON.stringify({
               text: text,
               mood: "all",
@@ -176,6 +235,7 @@
             `<p style="color: #d84315; text-align: center;">${t.errConn}</p>`;
         }
         toggleLoading(false);
+        updateArchiveButtonVisibility();
       }
 
       async function generateLyrics(event) {
@@ -191,7 +251,6 @@
           const res = await fetch(`${API_URL}/generate-next-lines`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ text: text, mood: "melancholic", count: 3 }),
             body: JSON.stringify({
               text: text,
               mood: "melancholic",
@@ -213,7 +272,7 @@
                   class="save-poem-btn"
                   onclick="savePoem(this, '${escapedContent}')"
                   style="flex-shrink: 0; background: transparent; border: 1px solid var(--text-muted); color: var(--text-muted); padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 12px; font-family: 'Lora', 'Inter', sans-serif; transition: all 0.3s ease; white-space: nowrap;"
-                >Lưu lại</button>
+                >${t.btnSave}</button>
               </div>
             `;
           });
@@ -224,9 +283,11 @@
             `<p style="color: #d84315; text-align: center;">${t.errConn}</p>`;
         }
         toggleLoading(false);
+        updateArchiveButtonVisibility();
       }
 
       async function savePoem(btn, content) {
+        const t = i18n[currentLang];
         const originalText = btn.innerText;
         btn.innerText = "...";
         btn.disabled = true;
@@ -234,14 +295,20 @@
         btn.style.cursor = "not-allowed";
 
         try {
+          const headers = { "Content-Type": "application/json" };
+          const token = localStorage.getItem("access_token");
+          if (token) {
+            headers["Authorization"] = `Bearer ${token}`;
+          }
+
           const res = await fetch(`${API_URL}/poems`, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ content: content }),
+            headers: headers,
+            body: JSON.stringify({ content: content, is_public: false }),
           });
 
           if (res.ok) {
-            btn.innerText = "✓ Đã lưu";
+            btn.innerText = t.btnSaved;
             btn.style.opacity = "1";
             btn.style.backgroundColor = "var(--text-muted)";
             btn.style.color = "#ffffff";
@@ -252,14 +319,188 @@
             btn.disabled = false;
             btn.style.opacity = "1";
             btn.style.cursor = "pointer";
-            alert("Lưu thất bại: " + (errData.detail || "Lỗi hệ thống"));
+            alert(t.errSaveFail + (errData.detail || "Lỗi hệ thống"));
           }
         } catch (err) {
           btn.innerText = originalText;
           btn.disabled = false;
           btn.style.opacity = "1";
           btn.style.cursor = "pointer";
-          alert("Lỗi kết nối server. Vui lòng kiểm tra backend đang chạy.");
+          alert(t.errServerConn);
+        }
+      }
+
+      function getCompletePoemContent() {
+        const inputVal = document.getElementById("lyricInput").value.trim();
+        const outputArea = document.getElementById("outputArea");
+        let hasOutput = false;
+        if (outputArea) {
+          const emptyPara = document.getElementById("ui-empty-out");
+          if (!emptyPara && outputArea.innerText.trim().length > 0) {
+            hasOutput = true;
+          }
+        }
+        if (!hasOutput) {
+          return inputVal;
+        }
+        const resultItems = outputArea.querySelectorAll(".result-item");
+        const lines = [];
+        resultItems.forEach((item) => {
+          const span = item.querySelector("span");
+          if (span) {
+            const text = (span.innerText || span.textContent).trim();
+            if (text) {
+              lines.push(text);
+            }
+          } else {
+            let text = "";
+            item.childNodes.forEach(node => {
+              if (node.nodeType === Node.TEXT_NODE) {
+                text += node.textContent;
+              } else if (node.nodeType === Node.ELEMENT_NODE && node.tagName !== "BUTTON") {
+                text += node.innerText || node.textContent;
+              }
+            });
+            if (text.trim()) {
+              lines.push(text.trim());
+            }
+          }
+        });
+        return lines.join("\n");
+      }
+
+      function showToast(message) {
+        const toast = document.createElement("div");
+        toast.innerText = message;
+        toast.style.position = "fixed";
+        toast.style.bottom = "20px";
+        toast.style.left = "50%";
+        toast.style.transform = "translateX(-50%) translateY(20px)";
+        toast.style.background = "rgba(78, 52, 46, 0.95)";
+        toast.style.color = "#f4ece6";
+        toast.style.padding = "12px 24px";
+        toast.style.borderRadius = "4px";
+        toast.style.boxShadow = "0 4px 12px rgba(0, 0, 0, 0.15)";
+        toast.style.fontFamily = "'Lora', serif";
+        toast.style.fontSize = "14px";
+        toast.style.zIndex = "1000";
+        toast.style.opacity = "0";
+        toast.style.transition = "all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)";
+        
+        document.body.appendChild(toast);
+        
+        setTimeout(() => {
+          toast.style.opacity = "1";
+          toast.style.transform = "translateX(-50%) translateY(0)";
+        }, 50);
+        
+        setTimeout(() => {
+          toast.style.opacity = "0";
+          toast.style.transform = "translateX(-50%) translateY(-20px)";
+          setTimeout(() => {
+            toast.remove();
+          }, 400);
+        }, 3000);
+      }
+
+      function updateArchiveButtonVisibility() {
+        const inputVal = document.getElementById("lyricInput").value.trim();
+        const outputArea = document.getElementById("outputArea");
+        let hasOutput = false;
+        if (outputArea) {
+          const emptyPara = document.getElementById("ui-empty-out");
+          if (!emptyPara && outputArea.innerText.trim().length > 0) {
+            hasOutput = true;
+          }
+        }
+        const hasInput = inputVal.length > 0;
+        const btn = document.getElementById("archivePoemBtn");
+        if (btn) {
+          if (btn.innerText === i18n[currentLang].btnSaved || btn.innerText === "...") {
+            return;
+          }
+          if (hasInput || hasOutput) {
+            btn.disabled = false;
+            btn.style.opacity = "1";
+            btn.style.cursor = "pointer";
+            btn.style.pointerEvents = "auto";
+            btn.style.borderColor = "var(--text-main)";
+            btn.style.color = "var(--text-main)";
+          } else {
+            btn.disabled = true;
+            btn.style.opacity = "0.4";
+            btn.style.cursor = "not-allowed";
+            btn.style.pointerEvents = "none";
+            btn.style.borderColor = "var(--text-muted)";
+            btn.style.color = "var(--text-muted)";
+            btn.style.background = "transparent";
+          }
+        }
+      }
+
+      async function saveArchive(btn) {
+        const token = localStorage.getItem("access_token");
+        const t = i18n[currentLang];
+        
+        if (!token) {
+          showToast(t.errNeedLogin);
+          return;
+        }
+        
+        const content = getCompletePoemContent();
+        if (!content) {
+          return;
+        }
+        
+        const originalText = btn.innerText;
+        btn.innerText = "...";
+        btn.disabled = true;
+        btn.style.opacity = "0.6";
+        btn.style.cursor = "not-allowed";
+        
+        try {
+          const res = await fetch(`${API_URL}/poems`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${token}`
+            },
+            body: JSON.stringify({ content: content, is_public: false }),
+          });
+          
+          if (res.ok) {
+            btn.innerText = t.btnSaved;
+            btn.style.opacity = "1";
+            btn.style.backgroundColor = "var(--text-muted)";
+            btn.style.color = "#ffffff";
+            btn.style.borderColor = "var(--text-muted)";
+            showToast(t.toastSaved);
+            
+            setTimeout(() => {
+              btn.innerText = t.btnArchive;
+              btn.disabled = false;
+              btn.style.opacity = "1";
+              btn.style.backgroundColor = "transparent";
+              btn.style.color = "var(--text-main)";
+              btn.style.borderColor = "var(--text-main)";
+              btn.style.cursor = "pointer";
+              btn.style.pointerEvents = "auto";
+              updateArchiveButtonVisibility();
+            }, 3000);
+          } else {
+            const errData = await res.json().catch(() => ({}));
+            btn.innerText = originalText;
+            btn.disabled = false;
+            btn.style.opacity = "1";
+            btn.style.cursor = "pointer";
+            alert(t.errSaveFail + (errData.detail || "Lỗi hệ thống"));
+          }
+        } catch (err) {
+          btn.innerText = originalText;
+          btn.disabled = false;
+          btn.style.opacity = "1";
+          btn.style.cursor = "pointer";
+          alert(t.errServerConn);
         }
       }
 
@@ -268,6 +509,55 @@
           ? "block"
           : "none";
       }
+
+      function checkAuth() {
+        const token = localStorage.getItem("access_token");
+        const authStatusArea = document.getElementById("authStatusArea");
+        const t = i18n[currentLang];
+        const navTabArchive = document.getElementById("navTabArchive");
+        
+        if (token) {
+          try {
+            const payload = JSON.parse(atob(token.split('.')[1]));
+            const username = payload.sub || "Thi sĩ";
+            authStatusArea.innerHTML = `
+              ${t.welcome}, <strong>${username}</strong> | 
+              <a href="#" onclick="handleLogout(event)" style="color: var(--text-main); font-weight: 600; text-decoration: none; border-bottom: 1px dashed var(--text-main);">${t.logout}</a>
+            `;
+            if (navTabArchive) navTabArchive.style.display = "inline-block";
+          } catch (e) {
+            localStorage.removeItem("access_token");
+            showGuestNav(authStatusArea);
+          }
+        } else {
+          showGuestNav(authStatusArea);
+        }
+      }
+
+      function showGuestNav(element) {
+        const t = i18n[currentLang];
+        element.innerHTML = `
+          <a href="/login" style="color: var(--text-main); font-weight: 600; text-decoration: none;">${t.login}</a> | 
+          <a href="/register" style="color: var(--text-main); font-weight: 600; text-decoration: none;">${t.register}</a>
+        `;
+        const navTabArchive = document.getElementById("navTabArchive");
+        if (navTabArchive) navTabArchive.style.display = "none";
+      }
+
+      function handleLogout(event) {
+        if (event) event.preventDefault();
+        localStorage.removeItem("access_token");
+        window.location.reload();
+      }
+
+      // Initialize language and UI state check on load
+      const lyricInput = document.getElementById("lyricInput");
+      if (lyricInput) {
+        lyricInput.addEventListener("input", updateArchiveButtonVisibility);
+        lyricInput.addEventListener("keyup", updateArchiveButtonVisibility);
+        lyricInput.addEventListener("paste", updateArchiveButtonVisibility);
+      }
+      updateUI();
     </script>
   </body>
 </html>

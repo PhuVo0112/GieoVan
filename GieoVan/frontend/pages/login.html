@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Gieo Vần - Đăng Nhập</title>
+    <link rel="icon" type="image/png" href="/logo.png?v=3" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;1,400&family=Playfair+Display:ital,wght@0,400..900;1,400..900&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/style.css" />
+    <style>
+      .form-group {
+        margin-bottom: 20px;
+        text-align: left;
+      }
+      .form-group label {
+        display: block;
+        margin-bottom: 8px;
+        font-weight: 600;
+        color: var(--text-main);
+      }
+      .form-control {
+        width: 100%;
+        padding: 12px;
+        background: #faf8f5;
+        color: var(--text-main);
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        font-size: 15px;
+        font-family: "Lora", "Inter", sans-serif;
+        box-sizing: border-box;
+        outline: none;
+        transition: all 0.3s ease;
+      }
+      .form-control:focus {
+        border-color: var(--text-muted);
+        background: #ffffff;
+        box-shadow: 0 0 0 3px rgba(141, 110, 99, 0.1);
+      }
+      .auth-links {
+        margin-top: 20px;
+        text-align: center;
+        font-size: 14px;
+      }
+      .auth-links a {
+        color: var(--text-main);
+        text-decoration: underline;
+        font-weight: 600;
+        transition: color 0.3s ease;
+      }
+      .auth-links a:hover {
+        color: var(--text-muted);
+      }
+      .alert {
+        padding: 12px;
+        border-radius: 6px;
+        margin-bottom: 20px;
+        font-size: 14px;
+        display: none;
+      }
+      .alert-danger {
+        background-color: #fbe9e7;
+        color: #c62828;
+        border: 1px solid #ffccbc;
+      }
+      .alert-success {
+        background-color: #e8f5e9;
+        color: #2e7d32;
+        border: 1px solid #c8e6c9;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <button class="lang-toggle" id="langBtn" onclick="toggleLanguage()">
+        EN
+      </button>
+      <header class="hero-banner">
+        <div class="banner-content">
+          <h1 id="ui-title" class="banner-title">Gieo Vần Thơ Ca</h1>
+          <p id="ui-subtitle" class="banner-tagline">Đăng nhập hệ thống</p>
+        </div>
+      </header>
+
+      <div id="errorAlert" class="alert alert-danger"></div>
+      <div id="successAlert" class="alert alert-success"></div>
+
+      <form id="loginForm" onsubmit="handleLogin(event)">
+        <div class="form-group">
+          <label id="labelUsername" for="username">Tên tài khoản</label>
+          <input
+            type="text"
+            id="username"
+            class="form-control"
+            required
+            placeholder="Nhập tên tài khoản..."
+          />
+        </div>
+        <div class="form-group">
+          <label id="labelPassword" for="password">Mật khẩu</label>
+          <input
+            type="password"
+            id="password"
+            class="form-control"
+            required
+            placeholder="Nhập mật khẩu..."
+          />
+        </div>
+
+        <button type="submit" id="ui-btn-submit" class="action-btn btn-primary" style="width: 100%; margin-top: 10px;">
+          Đăng Nhập
+        </button>
+      </form>
+
+      <div id="authLinksContainer" class="auth-links">
+        Chưa có tài khoản? <a href="/register">Đăng ký ngay</a>
+      </div>
+    </div>
+
+    <script>
+      let currentLang = localStorage.getItem("preferred_lang") || "vi";
+
+      const i18n = {
+        vi: {
+          title: "Gieo Vần Thơ Ca",
+          subtitle: "Đăng nhập hệ thống",
+          labelUsername: "Tên tài khoản",
+          placeholderUsername: "Nhập tên tài khoản...",
+          labelPassword: "Mật khẩu",
+          placeholderPassword: "Nhập mật khẩu...",
+          btnSubmit: "Đăng Nhập",
+          linkPrompt: "Chưa có tài khoản? ",
+          linkAction: "Đăng ký ngay",
+          successMsg: "Đăng nhập thành công! Đang chuyển hướng...",
+          defaultErrorMsg: "Đăng nhập thất bại. Vui lòng kiểm tra lại.",
+          connErrorMsg: "Lỗi kết nối máy chủ. Vui lòng thử lại sau.",
+          toggleText: "EN"
+        },
+        en: {
+          title: "Poetry & Rhymes",
+          subtitle: "System Login",
+          labelUsername: "Username",
+          placeholderUsername: "Enter your username...",
+          labelPassword: "Password",
+          placeholderPassword: "Enter your password...",
+          btnSubmit: "Log In",
+          linkPrompt: "Don't have an account? ",
+          linkAction: "Sign up now",
+          successMsg: "Logged in successfully! Redirecting...",
+          defaultErrorMsg: "Login failed. Please check your credentials.",
+          connErrorMsg: "Server connection error. Please try again later.",
+          toggleText: "VI"
+        }
+      };
+
+      function toggleLanguage() {
+        currentLang = currentLang === "vi" ? "en" : "vi";
+        localStorage.setItem("preferred_lang", currentLang);
+        updateUI();
+      }
+
+      function updateUI() {
+        const t = i18n[currentLang];
+        document.getElementById("ui-title").innerText = t.title;
+        document.getElementById("ui-subtitle").innerText = t.subtitle;
+        document.getElementById("labelUsername").innerText = t.labelUsername;
+        document.getElementById("username").placeholder = t.placeholderUsername;
+        document.getElementById("labelPassword").innerText = t.labelPassword;
+        document.getElementById("password").placeholder = t.placeholderPassword;
+        document.getElementById("ui-btn-submit").innerText = t.btnSubmit;
+        document.getElementById("langBtn").innerText = t.toggleText;
+        document.getElementById("authLinksContainer").innerHTML = `${t.linkPrompt}<a href="/register">${t.linkAction}</a>`;
+      }
+
+      async function handleLogin(event) {
+        event.preventDefault();
+        const username = document.getElementById("username").value.trim();
+        const password = document.getElementById("password").value;
+        const t = i18n[currentLang];
+
+        const errorAlert = document.getElementById("errorAlert");
+        const successAlert = document.getElementById("successAlert");
+
+        errorAlert.style.display = "none";
+        successAlert.style.display = "none";
+
+        try {
+          const response = await fetch("/api/login", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ username, password }),
+          });
+
+          const data = await response.json();
+
+          if (response.ok) {
+            localStorage.setItem("access_token", data.access_token);
+            successAlert.innerText = t.successMsg;
+            successAlert.style.display = "block";
+            setTimeout(() => {
+              window.location.href = "/";
+            }, 1000);
+          } else {
+            errorAlert.innerText = data.detail || t.defaultErrorMsg;
+            errorAlert.style.display = "block";
+          }
+        } catch (err) {
+          errorAlert.innerText = t.connErrorMsg;
+          errorAlert.style.display = "block";
+        }
+      }
+
+      // Initialize UI on load
+      updateUI();
+    </script>
+  </body>
+</html>

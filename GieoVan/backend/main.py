@@ -19,9 +19,12 @@ import os
 _BASE_DIR_BOOT = os.path.dirname(os.path.abspath(__file__))
 load_dotenv(dotenv_path=os.path.abspath(os.path.join(_BASE_DIR_BOOT, "..", "..", ".env")))
 
-from sqlmodel import Session
+from sqlmodel import Session, select
 from backend.database.db import init_db, get_session
-from backend.app.models import Poem
+from backend.app.models import Poem, User
+from backend.app.auth import get_password_hash, verify_password, create_access_token, SECRET_KEY, ALGORITHM
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+import jwt
 
 BASE_DIR = _BASE_DIR_BOOT
 FRONTEND_DIR = os.path.abspath(os.path.join(BASE_DIR, "../frontend"))
@@ -395,26 +398,210 @@ async def generate_next_lines(input_data: GenerateInput) -> GenerateResponse:
                 
             raise HTTPException(status_code=500, detail="Hệ thống AI đang tạm thời gián đoạn. Vui lòng thử lại sau.")
 
+class UserRegister(BaseModel):
+    username: str
+    email: str
+    password: str
+
+class UserLogin(BaseModel):
+    username: str
+    password: str
+
+@app.post("/api/register")
+async def register(user_data: UserRegister, db: Session = Depends(get_session)):
+    stmt_user = select(User).where(User.username == user_data.username)
+    if db.exec(stmt_user).first():
+        raise HTTPException(status_code=400, detail="Tên tài khoản đã tồn tại.")
+        
+    stmt_email = select(User).where(User.email == user_data.email)
+    if db.exec(stmt_email).first():
+        raise HTTPException(status_code=400, detail="Email đã được sử dụng.")
+
+    try:
+        new_user = User(
+            username=user_data.username,
+            email=user_data.email,
+            hashed_password=get_password_hash(user_data.password)
+        )
+        db.add(new_user)
+        db.commit()
+        db.refresh(new_user)
+        return {
+            "id": new_user.id,
+            "username": new_user.username,
+            "email": new_user.email,
+            "created_at": new_user.created_at.isoformat() if new_user.created_at else None
+        }
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Failed to register user: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Đăng ký không thành công do lỗi hệ thống.")
+
+@app.post("/api/login")
+async def login(login_data: UserLogin, db: Session = Depends(get_session)):
+    stmt = select(User).where(User.username == login_data.username)
+    user = db.exec(stmt).first()
+    if not user or not verify_password(login_data.password, user.hashed_password):
+        raise HTTPException(status_code=401, detail="Tên tài khoản hoặc mật khẩu không chính xác.")
+        
+    token = create_access_token(data={"sub": user.username, "user_id": user.id})
+    return {"access_token": token, "token_type": "bearer"}
+
 class PoemCreate(BaseModel):
     content: str
+    is_public: Optional[bool] = False
+
+security = HTTPBearer(auto_error=False)
+
+async def get_current_user_optional(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+    db: Session = Depends(get_session)
+) -> Optional[User]:
+    if not credentials:
+        return None
+    token = credentials.credentials
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id: int = payload.get("user_id")
+        if user_id is None:
+            return None
+        return db.get(User, user_id)
+    except Exception:
+        return None
 
 @app.post("/api/poems")
-async def create_poem(poem_data: PoemCreate, db: Session = Depends(get_session)):
+async def create_poem(
+    poem_data: PoemCreate,
+    db: Session = Depends(get_session),
+    current_user: Optional[User] = Depends(get_current_user_optional)
+):
     try:
-        new_poem = Poem(content=poem_data.content)
+        author_id = current_user.id if current_user else None
+        is_pub = poem_data.is_public if poem_data.is_public is not None else False
+        new_poem = Poem(content=poem_data.content, author_id=author_id, is_public=is_pub)
         db.add(new_poem)
         db.commit()
         db.refresh(new_poem)
-        return {"status": "success", "id": new_poem.id, "content": new_poem.content, "created_at": new_poem.created_at.isoformat()}
+        return {"status": "success", "id": new_poem.id, "content": new_poem.content, "created_at": new_poem.created_at.isoformat(), "is_public": new_poem.is_public}
     except Exception as e:
         db.rollback()
         logger.error(f"Failed to save poem to database: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Không thể lưu bài thơ vào cơ sở dữ liệu.")
 
+@app.get("/api/poems/feed")
+async def get_poems_feed(db: Session = Depends(get_session)):
+    try:
+        stmt = select(Poem).where(Poem.is_public == True).order_by(Poem.created_at.desc())
+        poems = db.exec(stmt).all()
+        return [
+            {
+                "id": poem.id,
+                "content": poem.content,
+                "created_at": poem.created_at.isoformat() if poem.created_at else None,
+                "author": poem.author.username if poem.author else "Ẩn danh"
+            }
+            for poem in poems
+        ]
+    except Exception as e:
+        logger.error(f"Failed to fetch poems feed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Không thể tải bảng tin thơ.")
+
+@app.get("/api/poems/my-poems")
+async def get_my_poems(
+    db: Session = Depends(get_session),
+    current_user: Optional[User] = Depends(get_current_user_optional)
+):
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Yêu cầu đăng nhập để xem danh sách bài thơ của bạn.")
+    try:
+        stmt = select(Poem).where(Poem.author_id == current_user.id).order_by(Poem.created_at.desc())
+        poems = db.exec(stmt).all()
+        return [
+            {
+                "id": poem.id,
+                "content": poem.content,
+                "created_at": poem.created_at.isoformat() if poem.created_at else None,
+                "is_public": poem.is_public,
+                "author": current_user.username
+            }
+            for poem in poems
+        ]
+    except Exception as e:
+        logger.error(f"Failed to fetch user poems: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Không thể tải danh sách bài thơ của bạn.")
+
+@app.put("/api/poems/{poem_id}/publish")
+async def publish_poem(
+    poem_id: int,
+    db: Session = Depends(get_session),
+    current_user: Optional[User] = Depends(get_current_user_optional)
+):
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Yêu cầu đăng nhập để thực hiện.")
+    
+    poem = db.get(Poem, poem_id)
+    if not poem:
+        raise HTTPException(status_code=404, detail="Không tìm thấy bài thơ.")
+        
+    if poem.author_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Bạn không có quyền xuất bản bài thơ này.")
+        
+    try:
+        poem.is_public = True
+        db.add(poem)
+        db.commit()
+        db.refresh(poem)
+        return {"status": "success", "id": poem.id, "is_public": poem.is_public}
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Failed to publish poem: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Không thể xuất bản bài thơ.")
+
+@app.delete("/api/poems/{poem_id}")
+async def delete_poem(
+    poem_id: int,
+    db: Session = Depends(get_session),
+    current_user: Optional[User] = Depends(get_current_user_optional)
+):
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Yêu cầu đăng nhập để thực hiện.")
+    
+    poem = db.get(Poem, poem_id)
+    if not poem:
+        raise HTTPException(status_code=404, detail="Không tìm thấy bài thơ.")
+        
+    if poem.author_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Bạn không có quyền xóa bài thơ này.")
+        
+    try:
+        db.delete(poem)
+        db.commit()
+        return {"status": "success", "message": "Bài thơ đã được xóa thành công."}
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Failed to delete poem: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Không thể xóa bài thơ.")
+
 # 5. Route Root trả về trang chủ index.html từ thư mục pages/ mới
 @app.get("/")
 async def read_root():
     return FileResponse(os.path.join(FRONTEND_DIR, "pages", "index.html"))
+
+@app.get("/register")
+async def read_register():
+    return FileResponse(os.path.join(FRONTEND_DIR, "pages", "register.html"))
+
+@app.get("/login")
+async def read_login():
+    return FileResponse(os.path.join(FRONTEND_DIR, "pages", "login.html"))
+
+@app.get("/feed")
+async def read_feed():
+    return FileResponse(os.path.join(FRONTEND_DIR, "pages", "feed.html"))
+
+@app.get("/archive")
+async def read_archive():
+    return FileResponse(os.path.join(FRONTEND_DIR, "pages", "archive.html"))
 
 # 6. Mount giao diện trỏ đến FRONTEND_DIR phục vụ file tĩnh
 # Mount tại /static theo chuẩn
