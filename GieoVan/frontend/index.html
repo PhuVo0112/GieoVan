@@ -81,7 +81,7 @@
       </div>
 
       <script>
-        const API_URL = "http://localhost:8000/api";
+        const API_URL = "https://gieovan.onrender.com";
         let currentLang = localStorage.getItem("preferred_lang") || "vi";
 
         // Từ điển Đa ngôn ngữ
@@ -200,7 +200,7 @@
           const text = document.getElementById("lyricInput").value;
           const t = i18n[currentLang];
 
-          if (!text.trim()) return alert(t.alertEmpty);
+          if (!text.trim()) return showToast(t.alertEmpty, "info");
 
           toggleLoading(true);
           try {
@@ -236,7 +236,7 @@
           const text = document.getElementById("lyricInput").value;
           const t = i18n[currentLang];
 
-          if (!text.trim()) return alert(t.alertEmpty);
+          if (!text.trim()) return showToast(t.alertEmpty, "info");
 
           toggleLoading(true);
           try {
@@ -311,14 +311,14 @@
               btn.disabled = false;
               btn.style.opacity = "1";
               btn.style.cursor = "pointer";
-              alert(t.errSaveFail + (errData.detail || "Lỗi hệ thống"));
+              showToast(t.errSaveFail + (errData.detail || "Lỗi hệ thống"), "error");
             }
           } catch (err) {
             btn.innerText = originalText;
             btn.disabled = false;
             btn.style.opacity = "1";
             btn.style.cursor = "pointer";
-            alert(t.errServerConn);
+            showToast(t.errServerConn, "error");
           }
         }
 
@@ -361,38 +361,67 @@
           return lines.join("\n");
         }
 
-        function showToast(message) {
+        function showToast(message, type = "info") {
+          const existing = document.querySelector(".custom-toast");
+          if (existing) {
+            existing.remove();
+          }
+          let container = document.querySelector(".toast-container");
+          if (!container) {
+            container = document.createElement("div");
+            container.className = "toast-container";
+            document.body.appendChild(container);
+          }
           const toast = document.createElement("div");
+          toast.className = `custom-toast toast-${type}`;
           toast.innerText = message;
-          toast.style.position = "fixed";
-          toast.style.bottom = "20px";
-          toast.style.left = "50%";
-          toast.style.transform = "translateX(-50%) translateY(20px)";
-          toast.style.background = "rgba(78, 52, 46, 0.95)";
-          toast.style.color = "#f4ece6";
-          toast.style.padding = "12px 24px";
-          toast.style.borderRadius = "4px";
-          toast.style.boxShadow = "0 4px 12px rgba(0, 0, 0, 0.15)";
-          toast.style.fontFamily = "'Lora', serif";
-          toast.style.fontSize = "14px";
-          toast.style.zIndex = "1000";
-          toast.style.opacity = "0";
-          toast.style.transition = "all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)";
-
-          document.body.appendChild(toast);
-
+          container.appendChild(toast);
           setTimeout(() => {
-            toast.style.opacity = "1";
-            toast.style.transform = "translateX(-50%) translateY(0)";
-          }, 50);
-
-          setTimeout(() => {
-            toast.style.opacity = "0";
-            toast.style.transform = "translateX(-50%) translateY(-20px)";
-            setTimeout(() => {
-              toast.remove();
-            }, 400);
+            toast.remove();
+            if (container.childNodes.length === 0) {
+              container.remove();
+            }
           }, 3000);
+        }
+
+        function showConfirm(message) {
+          if (document.querySelector(".custom-modal-overlay")) {
+            return Promise.resolve(false);
+          }
+          return new Promise((resolve) => {
+            const overlay = document.createElement("div");
+            overlay.className = "custom-modal-overlay";
+
+            const cancelText = currentLang === "vi" ? "Hủy" : "Cancel";
+            const confirmText = currentLang === "vi" ? "Xóa vĩnh viễn" : "Delete permanently";
+            const titleText = currentLang === "vi" ? "Xác nhận xóa" : "Confirm Delete";
+
+            overlay.innerHTML = `
+              <div class="custom-modal">
+                <div class="custom-modal-title">${titleText}</div>
+                <div class="custom-modal-text">${message}</div>
+                <div class="custom-modal-buttons">
+                  <button class="custom-modal-btn btn-cancel">${cancelText}</button>
+                  <button class="custom-modal-btn btn-confirm">${confirmText}</button>
+                </div>
+              </div>
+            `;
+
+            document.body.appendChild(overlay);
+
+            setTimeout(() => overlay.classList.add("active"), 10);
+
+            const cleanup = (result) => {
+              overlay.classList.remove("active");
+              setTimeout(() => {
+                overlay.remove();
+                resolve(result);
+              }, 300);
+            };
+
+            overlay.querySelector(".btn-cancel").addEventListener("click", () => cleanup(false));
+            overlay.querySelector(".btn-confirm").addEventListener("click", () => cleanup(true));
+          });
         }
 
         function updateArchiveButtonVisibility() {
@@ -485,14 +514,14 @@
               btn.disabled = false;
               btn.style.opacity = "1";
               btn.style.cursor = "pointer";
-              alert(t.errSaveFail + (errData.detail || "Lỗi hệ thống"));
+              showToast(t.errSaveFail + (errData.detail || "Lỗi hệ thống"), "error");
             }
           } catch (err) {
             btn.innerText = originalText;
             btn.disabled = false;
             btn.style.opacity = "1";
             btn.style.cursor = "pointer";
-            alert(t.errServerConn);
+            showToast(t.errServerConn, "error");
           }
         }
 

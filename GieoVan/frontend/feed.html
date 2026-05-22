@@ -102,6 +102,69 @@
         updateUI();
       }
 
+      function showToast(message, type = "info") {
+        const existing = document.querySelector(".custom-toast");
+        if (existing) {
+          existing.remove();
+        }
+        let container = document.querySelector(".toast-container");
+        if (!container) {
+          container = document.createElement("div");
+          container.className = "toast-container";
+          document.body.appendChild(container);
+        }
+        const toast = document.createElement("div");
+        toast.className = `custom-toast toast-${type}`;
+        toast.innerText = message;
+        container.appendChild(toast);
+        setTimeout(() => {
+          toast.remove();
+          if (container.childNodes.length === 0) {
+            container.remove();
+          }
+        }, 3000);
+      }
+
+      function showConfirm(message) {
+        if (document.querySelector(".custom-modal-overlay")) {
+          return Promise.resolve(false);
+        }
+        return new Promise((resolve) => {
+          const overlay = document.createElement("div");
+          overlay.className = "custom-modal-overlay";
+          
+          const cancelText = currentLang === "vi" ? "Hủy" : "Cancel";
+          const confirmText = currentLang === "vi" ? "Xóa vĩnh viễn" : "Delete permanently";
+          const titleText = currentLang === "vi" ? "Xác nhận xóa" : "Confirm Delete";
+          
+          overlay.innerHTML = `
+            <div class="custom-modal">
+              <div class="custom-modal-title">${titleText}</div>
+              <div class="custom-modal-text">${message}</div>
+              <div class="custom-modal-buttons">
+                <button class="custom-modal-btn btn-cancel">${cancelText}</button>
+                <button class="custom-modal-btn btn-confirm">${confirmText}</button>
+              </div>
+            </div>
+          `;
+          
+          document.body.appendChild(overlay);
+          
+          setTimeout(() => overlay.classList.add("active"), 10);
+          
+          const cleanup = (result) => {
+            overlay.classList.remove("active");
+            setTimeout(() => {
+              overlay.remove();
+              resolve(result);
+            }, 300);
+          };
+          
+          overlay.querySelector(".btn-cancel").addEventListener("click", () => cleanup(false));
+          overlay.querySelector(".btn-confirm").addEventListener("click", () => cleanup(true));
+        });
+      }
+
       function updateUI() {
         const t = i18n[currentLang];
         document.getElementById("ui-title").innerText = t.title;
@@ -252,7 +315,8 @@
         if (event) event.preventDefault();
         const t = i18n[currentLang];
         
-        if (!confirm(t.confirmDelete)) {
+        const confirmed = await showConfirm(t.confirmDelete);
+        if (!confirmed) {
           return;
         }
 
@@ -280,10 +344,10 @@
             }
           } else {
             const errData = await res.json().catch(() => ({}));
-            alert(t.errDeleteFail + (errData.detail || "Error"));
+            showToast(t.errDeleteFail + (errData.detail || "Error"), "error");
           }
         } catch (err) {
-          alert(t.errServerConn);
+          showToast(t.errServerConn, "error");
         }
       }
 

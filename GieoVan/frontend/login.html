@@ -84,9 +84,6 @@
         </div>
       </header>
 
-      <div id="errorAlert" class="alert alert-danger"></div>
-      <div id="successAlert" class="alert alert-success"></div>
-
       <form id="loginForm" onsubmit="handleLogin(event)">
         <div class="form-group">
           <label id="labelUsername" for="username">Tên tài khoản</label>
@@ -161,6 +158,69 @@
         updateUI();
       }
 
+      function showToast(message, type = "info") {
+        const existing = document.querySelector(".custom-toast");
+        if (existing) {
+          existing.remove();
+        }
+        let container = document.querySelector(".toast-container");
+        if (!container) {
+          container = document.createElement("div");
+          container.className = "toast-container";
+          document.body.appendChild(container);
+        }
+        const toast = document.createElement("div");
+        toast.className = `custom-toast toast-${type}`;
+        toast.innerText = message;
+        container.appendChild(toast);
+        setTimeout(() => {
+          toast.remove();
+          if (container.childNodes.length === 0) {
+            container.remove();
+          }
+        }, 3000);
+      }
+
+      function showConfirm(message) {
+        if (document.querySelector(".custom-modal-overlay")) {
+          return Promise.resolve(false);
+        }
+        return new Promise((resolve) => {
+          const overlay = document.createElement("div");
+          overlay.className = "custom-modal-overlay";
+          
+          const cancelText = currentLang === "vi" ? "Hủy" : "Cancel";
+          const confirmText = currentLang === "vi" ? "Xóa vĩnh viễn" : "Delete permanently";
+          const titleText = currentLang === "vi" ? "Xác nhận xóa" : "Confirm Delete";
+          
+          overlay.innerHTML = `
+            <div class="custom-modal">
+              <div class="custom-modal-title">${titleText}</div>
+              <div class="custom-modal-text">${message}</div>
+              <div class="custom-modal-buttons">
+                <button class="custom-modal-btn btn-cancel">${cancelText}</button>
+                <button class="custom-modal-btn btn-confirm">${confirmText}</button>
+              </div>
+            </div>
+          `;
+          
+          document.body.appendChild(overlay);
+          
+          setTimeout(() => overlay.classList.add("active"), 10);
+          
+          const cleanup = (result) => {
+            overlay.classList.remove("active");
+            setTimeout(() => {
+              overlay.remove();
+              resolve(result);
+            }, 300);
+          };
+          
+          overlay.querySelector(".btn-cancel").addEventListener("click", () => cleanup(false));
+          overlay.querySelector(".btn-confirm").addEventListener("click", () => cleanup(true));
+        });
+      }
+
       function updateUI() {
         const t = i18n[currentLang];
         document.getElementById("ui-title").innerText = t.title;
@@ -180,12 +240,6 @@
         const password = document.getElementById("password").value;
         const t = i18n[currentLang];
 
-        const errorAlert = document.getElementById("errorAlert");
-        const successAlert = document.getElementById("successAlert");
-
-        errorAlert.style.display = "none";
-        successAlert.style.display = "none";
-
         try {
           const response = await fetch("/api/login", {
             method: "POST",
@@ -199,18 +253,15 @@
 
           if (response.ok) {
             localStorage.setItem("access_token", data.access_token);
-            successAlert.innerText = t.successMsg;
-            successAlert.style.display = "block";
+            showToast(t.successMsg, "success");
             setTimeout(() => {
               window.location.href = "/";
-            }, 1000);
+            }, 3200);
           } else {
-            errorAlert.innerText = data.detail || t.defaultErrorMsg;
-            errorAlert.style.display = "block";
+            showToast(data.detail || t.defaultErrorMsg, "error");
           }
         } catch (err) {
-          errorAlert.innerText = t.connErrorMsg;
-          errorAlert.style.display = "block";
+          showToast(t.connErrorMsg, "error");
         }
       }
 
