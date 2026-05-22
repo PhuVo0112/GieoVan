@@ -36,12 +36,8 @@ from fastapi.middleware.cors import CORSMiddleware
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://gieo-van-kappa.vercel.app",
-                    "https://gieo-van-kappa.vercel.app/",
-                    "http://127.0.0.1:5500",               # Giữ lại cổng Live Server để mốt test local cho tiện
-                    "http://127.0.0.1:8000",
-                    "http://localhost:5500"], # Link Frontend Vercel của ông
-    allow_credentials=True,
+    allow_origins=["*"], 
+    allow_credentials= False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
