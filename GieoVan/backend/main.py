@@ -32,9 +32,11 @@ FRONTEND_DIR = os.path.abspath(os.path.join(BASE_DIR, "../frontend"))
 
 app = FastAPI(title="GieoVần API")
 
+from fastapi.middleware.cors import CORSMiddleware
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["https://gieo-van-kappa.vercel.app"], # Link Frontend Vercel của ông
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
