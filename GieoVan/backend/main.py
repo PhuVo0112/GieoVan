@@ -585,23 +585,23 @@ async def delete_poem(
 # 5. Route Root trả về trang chủ index.html từ thư mục pages/ mới
 @app.get("/")
 async def read_root():
-    return FileResponse(os.path.join(FRONTEND_DIR, "pages", "index.html"))
+    return FileResponse(os.path.join(FRONTEND_DIR, "index.html"))
 
 @app.get("/register")
 async def read_register():
-    return FileResponse(os.path.join(FRONTEND_DIR, "pages", "register.html"))
+    return FileResponse(os.path.join(FRONTEND_DIR, "register.html"))
 
 @app.get("/login")
 async def read_login():
-    return FileResponse(os.path.join(FRONTEND_DIR, "pages", "login.html"))
+    return FileResponse(os.path.join(FRONTEND_DIR, "login.html"))
 
 @app.get("/feed")
 async def read_feed():
-    return FileResponse(os.path.join(FRONTEND_DIR, "pages", "feed.html"))
+    return FileResponse(os.path.join(FRONTEND_DIR, "feed.html"))
 
 @app.get("/archive")
 async def read_archive():
-    return FileResponse(os.path.join(FRONTEND_DIR, "pages", "archive.html"))
+    return FileResponse(os.path.join(FRONTEND_DIR, "archive.html"))
 
 # 6. Mount giao diện trỏ đến FRONTEND_DIR phục vụ file tĩnh
 # Mount tại /static theo chuẩn
