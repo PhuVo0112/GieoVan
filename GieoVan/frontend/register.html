@@ -128,6 +128,7 @@
     </div>
 
     <script>
+      const API_URL = "https://gieovan.onrender.com/api";
       let currentLang = localStorage.getItem("preferred_lang") || "vi";
 
       const i18n = {
@@ -259,7 +260,7 @@
         const t = i18n[currentLang];
 
         try {
-          const response = await fetch("/api/register", {
+          const response = await fetch(`${API_URL}/register`, {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
