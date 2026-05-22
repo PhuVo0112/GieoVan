@@ -2,6 +2,7 @@ import re
 import os
 import logging
 import pronouncing
+from datetime import datetime, timezone
 from langdetect import detect
 from typing import Optional, List, Dict, Any
 from fastapi import FastAPI, HTTPException, Depends
@@ -44,6 +45,13 @@ app.add_middleware(
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
+
+def format_iso_datetime(dt: Optional[datetime]) -> Optional[str]:
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.isoformat()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -432,7 +440,7 @@ async def register(user_data: UserRegister, db: Session = Depends(get_session)):
             "id": new_user.id,
             "username": new_user.username,
             "email": new_user.email,
-            "created_at": new_user.created_at.isoformat() if new_user.created_at else None
+            "created_at": format_iso_datetime(new_user.created_at)
         }
     except Exception as e:
         db.rollback()
@@ -484,7 +492,7 @@ async def create_poem(
         db.add(new_poem)
         db.commit()
         db.refresh(new_poem)
-        return {"status": "success", "id": new_poem.id, "content": new_poem.content, "created_at": new_poem.created_at.isoformat(), "is_public": new_poem.is_public}
+        return {"status": "success", "id": new_poem.id, "content": new_poem.content, "created_at": format_iso_datetime(new_poem.created_at), "is_public": new_poem.is_public}
     except Exception as e:
         db.rollback()
         logger.error(f"Failed to save poem to database: {e}", exc_info=True)
@@ -499,7 +507,7 @@ async def get_poems_feed(db: Session = Depends(get_session)):
             {
                 "id": poem.id,
                 "content": poem.content,
-                "created_at": poem.created_at.isoformat() if poem.created_at else None,
+                "created_at": format_iso_datetime(poem.created_at),
                 "author": poem.author.username if poem.author else "Ẩn danh"
             }
             for poem in poems
@@ -522,7 +530,7 @@ async def get_my_poems(
             {
                 "id": poem.id,
                 "content": poem.content,
-                "created_at": poem.created_at.isoformat() if poem.created_at else None,
+                "created_at": format_iso_datetime(poem.created_at),
                 "is_public": poem.is_public,
                 "author": current_user.username
             }
