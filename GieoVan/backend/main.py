@@ -104,6 +104,7 @@ class GenerateInput(BaseModel):
     mood: str = "all"
     count: int = 3
     lang: str = "vi"
+    rhyme_mode: str = "one_word"
 
 class GenerateResponse(BaseModel):
     suggestions: List[str]
@@ -294,10 +295,25 @@ async def generate_next_lines(input_data: GenerateInput) -> GenerateResponse:
     last_line = lines[-1]
     words = last_line.split()
     last_word = words[-1] if words else ""
+    penultimate_word = words[-2] if len(words) >= 2 else ""
     syllables_count = len(words)
     
     lang = input_data.lang
-    extracted_rhyme = RhymeAnalyzer.get_rhyme(last_word, lang)
+    rhyme_mode = input_data.rhyme_mode
+    extracted_rhyme = ""
+    
+    if rhyme_mode == "one_word":
+        if last_word:
+            extracted_rhyme = RhymeAnalyzer.get_rhyme(last_word, lang)
+    elif rhyme_mode == "two_words":
+        rhyme_last = RhymeAnalyzer.get_rhyme(last_word, lang) if last_word else ""
+        rhyme_pen = RhymeAnalyzer.get_rhyme(penultimate_word, lang) if penultimate_word else ""
+        if rhyme_pen and rhyme_last:
+            extracted_rhyme = f"{rhyme_pen} - {rhyme_last}"
+        elif rhyme_last:
+            extracted_rhyme = rhyme_last
+    elif rhyme_mode == "semantic_only":
+        pass
     
     # 2. RAG: Lấy Context từ ChromaDB
     where_clause = build_chroma_where_clause(mood=input_data.mood)
@@ -337,12 +353,27 @@ async def generate_next_lines(input_data: GenerateInput) -> GenerateResponse:
         else:
             persona = "a Senior US/UK Rapper and Lyricist who writes sharp, rhythmic street-smart verses."
             
+        if rhyme_mode == "two_words":
+            rhyme_instruction_en = (
+                f"- The two end words of each line must perfectly match the double phonetic sound: '{extracted_rhyme}' "
+                f"(double rhyme with '{penultimate_word} {last_word}')."
+            )
+        elif rhyme_mode == "semantic_only":
+            rhyme_instruction_en = (
+                "- Focus 100% on the content, semantics, and emotional mood. "
+                "Absolutely DO NOT worry about rhyming at the end of each line."
+            )
+        else:
+            rhyme_instruction_en = (
+                f"- The end rhyme of each line must perfectly match the phonetic sound: '{extracted_rhyme}'."
+            )
+
         sys_instruct = (
             f"You are {persona} Your task is to write the next lines of rap/poetry "
             "based on the user's last line and the provided reference context.\n"
             f"Mandatory requirements:\n"
             f"- Generate exactly {input_data.count} next lines.\n"
-            f"- The end rhyme of each line must perfectly match the phonetic sound: '{extracted_rhyme}'.\n"
+            f"{rhyme_instruction_en}\n"
             f"- The mood of the lines must be: {input_data.mood}.\n"
             f"- The syllable count for each line should be approximately: {syllables_count} syllables.\n"
             "- The generated lines MUST logically flow from the user's current line, maintaining a consistent theme, imagery, and emotional tone. Avoid using overly cliché or randomly violent words unless explicitly requested by the mood.\n"
@@ -352,16 +383,30 @@ async def generate_next_lines(input_data: GenerateInput) -> GenerateResponse:
     else:
         context_str = "\n".join(context_docs) if context_docs else "Không có ngữ cảnh tham khảo."
         if input_data.mood == 'melancholic':
-            persona = "một Nhà thơ và Nhạc sĩ chuyên nghiệp, viết những câu từ sâu lắng, nhẹ nhàng, giàu hình ảnh và nhịp điệu."
+            persona = "một Nhà thơ và Nhạc sĩ chuyên nghiệp, viết những câu từ sâu lắng, nhẹ nhàng, giàu hình ảnh và nhịp điệu"
         else:
-            persona = "một Rapper Senior người Việt, viết những câu rap sắc sảo, gieo vần điêu luyện."
+            persona = "một Rapper Senior người Việt, viết những câu rap sắc sảo, gieo vần điêu luyện"
             
+        if rhyme_mode == "two_words":
+            rhyme_instruction_vi = (
+                f"- Hai từ cuối cùng của mỗi câu (vần kép) PHẢI hiệp vần kép hoàn hảo với cụm từ cuối '{penultimate_word} {last_word}' "
+                f"của người dùng (có chuỗi vần kép là '{extracted_rhyme}'). Tuyệt đối gieo vần kép hoàn hảo."
+            )
+        elif rhyme_mode == "semantic_only":
+            rhyme_instruction_vi = (
+                "- TẬP TRUNG 100% VÀO NỘI DUNG, NGỮ NGHĨA VÀ MẠCH CẢM XÚC (mood), tuyệt đối KHÔNG cần quan tâm đến việc gieo vần ở cuối câu."
+            )
+        else:
+            rhyme_instruction_vi = (
+                f"- Vần kết thúc (end_rhyme) của mỗi câu PHẢI hiệp vần hoàn toàn với từ '{last_word}' (có phần vần gốc là '{extracted_rhyme}'). Ví dụ nếu từ gốc là 'thể', các câu tiếp theo phải kết thúc bằng các từ cùng vần và thanh điệu như: dễ, bể, kể, lệ, thế, dế... Tuyệt đối không gieo lệch sang vần khác."
+            )
+
         sys_instruct = (
-            "Bạn là một Nhà thơ và Nhạc sĩ chuyên nghiệp người Việt, viết những câu từ sâu lắng, nhẹ nhàng, giàu hình ảnh.\n"
+            f"Bạn là {persona}.\n"
             "Nhiệm vụ của bạn là viết tiếp các câu thơ/rap dựa trên câu cuối cùng của người dùng.\n"
             "Yêu cầu bắt buộc:\n"
             f"- Sinh ra chính xác {input_data.count} câu tiếp theo.\n"
-            f"- Vần kết thúc (end_rhyme) của mỗi câu PHẢI hiệp vần hoàn toàn với từ '{last_word}' (có phần vần gốc là '{extracted_rhyme}'). Ví dụ nếu từ gốc là 'thể', các câu tiếp theo phải kết thúc bằng các từ cùng vần và thanh điệu như: dễ, bể, kể, lệ, thế, dế... Tuyệt đối không gieo lệch sang vần khác.\n"
+            f"{rhyme_instruction_vi}\n"
             f"- Cảm xúc (mood) của câu: {input_data.mood}.\n"
             f"- Số lượng âm tiết mỗi câu xấp xỉ: {syllables_count} từ.\n"
             "- Chỉ trả về JSON thuần túy theo schema yêu cầu."

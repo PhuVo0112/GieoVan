@@ -46,6 +46,15 @@
             oninput="updateArchiveButtonVisibility()"></textarea>
         </div>
 
+        <div class="control-group" style="margin-bottom: 20px; display: flex; justify-content: center; align-items: center; gap: 12px; font-family: 'Lora', 'Inter', sans-serif;">
+          <label for="rhymeModeSelect" id="ui-label-rhyme-mode" style="color: var(--text-main); font-weight: 600; font-size: 14.5px;">Chế độ gieo vần:</label>
+          <select id="rhymeModeSelect" style="background: #faf8f5; border: 1px solid var(--border-color); color: var(--text-main); padding: 8px 12px; border-radius: 4px; font-size: 14.5px; font-family: 'Lora', 'Inter', sans-serif; cursor: pointer; outline: none; transition: all 0.3s ease;">
+            <option value="one_word" id="opt-one-word" style="background: #faf8f5; color: var(--text-main);">Một từ cuối (Mặc định)</option>
+            <option value="two_words" id="opt-two-words" style="background: #faf8f5; color: var(--text-main);">Hai từ cuối (Vần kép)</option>
+            <option value="semantic_only" id="opt-semantic-only" style="background: #faf8f5; color: var(--text-main);">Không vần (Chỉ ngữ nghĩa)</option>
+          </select>
+        </div>
+
         <div class="btn-group">
           <button class="action-btn" id="ui-btn-analyze" onclick="analyzeLyrics(event)">
             Phân Tích Ngữ Âm
@@ -117,7 +126,11 @@
             errServerConn: "Lỗi kết nối server. Vui lòng kiểm tra backend đang chạy.",
             btnArchive: "Cất Vào Kho",
             toastSaved: "Đã cất bài thơ vào Góc của tôi ở chế độ riêng tư",
-            errNeedLogin: "Vui lòng đăng nhập để cất bài thơ vào kho lưu trữ."
+            errNeedLogin: "Vui lòng đăng nhập để cất bài thơ vào kho lưu trữ.",
+            labelRhymeMode: "Chế độ gieo vần:",
+            optOneWord: "Một từ cuối (Mặc định)",
+            optTwoWords: "Hai từ cuối (Vần kép)",
+            optSemanticOnly: "Không vần (Chỉ ngữ nghĩa)"
           },
           en: {
             title: "Poetry & Rhymes",
@@ -148,7 +161,11 @@
             errServerConn: "Server connection error. Please verify backend is running.",
             btnArchive: "Store in Archive",
             toastSaved: "Stored the poem in My Archive in private mode",
-            errNeedLogin: "Please log in to store the poem in your archive."
+            errNeedLogin: "Please log in to store the poem in your archive.",
+            labelRhymeMode: "Rhyme Mode:",
+            optOneWord: "Single end word (Default)",
+            optTwoWords: "Double end words (Couplet)",
+            optSemanticOnly: "No rhyme (Semantics only)"
           },
         };
 
@@ -176,6 +193,15 @@
           if (archivePoemBtn) {
             archivePoemBtn.innerText = t.btnArchive;
           }
+
+          const uiLabelRhymeMode = document.getElementById("ui-label-rhyme-mode");
+          if (uiLabelRhymeMode) uiLabelRhymeMode.innerText = t.labelRhymeMode;
+          const optOneWord = document.getElementById("opt-one-word");
+          if (optOneWord) optOneWord.innerText = t.optOneWord;
+          const optTwoWords = document.getElementById("opt-two-words");
+          if (optTwoWords) optTwoWords.innerText = t.optTwoWords;
+          const optSemanticOnly = document.getElementById("opt-semantic-only");
+          if (optSemanticOnly) optSemanticOnly.innerText = t.optSemanticOnly;
 
           // Cập nhật lại thanh chào người dùng theo ngôn ngữ mới
           checkAuth();
@@ -244,6 +270,9 @@
 
           if (!text.trim()) return showToast(t.alertEmpty, "info");
 
+          const rhymeModeSelect = document.getElementById("rhymeModeSelect");
+          const rhymeMode = rhymeModeSelect ? rhymeModeSelect.value : "one_word";
+
           toggleLoading(true);
           try {
             const res = await fetch(`${API_BASE_URL}/api/generate-next-lines`, {
@@ -254,6 +283,7 @@
                 mood: "melancholic",
                 count: 3,
                 lang: currentLang,
+                rhyme_mode: rhymeMode,
               }),
             });
             if (!res.ok) {
