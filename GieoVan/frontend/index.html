@@ -81,7 +81,9 @@
       </div>
 
       <script>
-        const API_URL = "https://gieovan.onrender.com/api";
+        const isLocal = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1" || window.location.hostname === "";
+        const API_BASE_URL = isLocal ? "http://127.0.0.1:8000" : "https://gieovan.onrender.com";
+        console.log("==> [SYSTEM CONFIG] Current API Endpoint:", `${API_BASE_URL}/api`);
         let currentLang = localStorage.getItem("preferred_lang") || "vi";
 
         // Từ điển Đa ngôn ngữ
@@ -204,7 +206,7 @@
 
           toggleLoading(true);
           try {
-            const res = await fetch(`${API_URL}/analyze-and-suggest`, {
+            const res = await fetch(`${API_BASE_URL}/api/analyze-and-suggest`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
@@ -213,18 +215,22 @@
                 lang: currentLang,
               }),
             });
+            if (!res.ok) {
+              const errData = await res.json().catch(() => ({}));
+              throw new Error(errData.detail || t.errConn);
+            }
             const data = await res.json();
 
             let html = `<p>${t.lastWord}: <span class="highlight">${data.analysis.last_word}</span> | ${t.rhymeDet}: <span class="highlight">${data.analysis.detected_rhyme}</span></p>`;
             html += `<div class="output-title">${t.suggestVibe}</div>`;
-            data.contextual_suggestions.forEach((item) => {
-              html += `<div class="result-item">${item.text}</div>`;
+            const suggestions = data.stylistic_suggestions || (data.contextual_suggestions ? data.contextual_suggestions.map(x => x.text) : []);
+            suggestions.forEach((textLine) => {
+              html += `<div class="result-item"><p style="margin: 0;">${textLine}</p></div>`;
             });
 
             document.getElementById("outputArea").innerHTML = html;
           } catch (err) {
-            document.getElementById("outputArea").innerHTML =
-              `<p style="color: #d84315; text-align: center;">${t.errConn}</p>`;
+            showToast(err.message, "error");
           }
           toggleLoading(false);
           updateArchiveButtonVisibility();
@@ -240,7 +246,7 @@
 
           toggleLoading(true);
           try {
-            const res = await fetch(`${API_URL}/generate-next-lines`, {
+            const res = await fetch(`${API_BASE_URL}/api/generate-next-lines`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
@@ -250,6 +256,10 @@
                 lang: currentLang,
               }),
             });
+            if (!res.ok) {
+              const errData = await res.json().catch(() => ({}));
+              throw new Error(errData.detail || t.errConn);
+            }
             const data = await res.json();
 
             let html = `<div class="output-title">${t.museReply}</div>`;
@@ -258,7 +268,7 @@
               const escapedContent = line.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
               html += `
               <div class="result-item" style="display: flex; justify-content: space-between; align-items: center; gap: 12px;">
-                <span style="flex: 1;">${line}</span>
+                <p style="flex: 1; margin: 0;">${line}</p>
                 <button
                   id="${safeId}"
                   class="save-poem-btn"
@@ -271,8 +281,7 @@
 
             document.getElementById("outputArea").innerHTML = html;
           } catch (err) {
-            document.getElementById("outputArea").innerHTML =
-              `<p style="color: #d84315; text-align: center;">${t.errConn}</p>`;
+            showToast(err.message, "error");
           }
           toggleLoading(false);
           updateArchiveButtonVisibility();
@@ -293,7 +302,7 @@
               headers["Authorization"] = `Bearer ${token}`;
             }
 
-            const res = await fetch(`${API_URL}/poems`, {
+            const res = await fetch(`${API_BASE_URL}/api/poems`, {
               method: "POST",
               headers: headers,
               body: JSON.stringify({ content: content, is_public: false }),
@@ -480,7 +489,7 @@
           btn.style.cursor = "not-allowed";
 
           try {
-            const res = await fetch(`${API_URL}/poems`, {
+            const res = await fetch(`${API_BASE_URL}/api/poems`, {
               method: "POST",
               headers: {
                 "Content-Type": "application/json",
