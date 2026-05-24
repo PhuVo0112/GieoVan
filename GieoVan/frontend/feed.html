@@ -10,6 +10,39 @@
     href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;1,400&family=Playfair+Display:ital,wght@0,400..900;1,400..900&display=swap"
     rel="stylesheet" />
   <link rel="stylesheet" href="/assets/css/style.css" />
+  <style>
+    /* Cưỡng bức container bọc footer phải dùng Flexbox căn giữa trục dọc */
+    .poem-footer, 
+    [class*="footer"], 
+    .result-item + div {
+        display: flex !important;
+        justify-content: space-between !important;
+        align-items: center !important;
+        align-content: center !important;
+    }
+
+    /* Ép nút bấm Star hoặc icon Star phải dùng inline-flex và thẳng hàng tuyệt đối */
+    .star-btn, 
+    [class*="star"], 
+    button[onclick*="Star"] {
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        gap: 4px !important;
+        vertical-align: middle !important;
+        line-height: 1 !important;
+    }
+
+    /* Ép ngôi sao và số lượng không được trồi sụt */
+    .star-btn span, 
+    [class*="star"] span {
+        display: inline-block !important;
+        line-height: 1 !important;
+        vertical-align: middle !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+  </style>
 </head>
 
 <body>
@@ -277,7 +310,11 @@
       }
 
       try {
-        const res = await fetch(`${API_URL}/poems/feed`);
+        const headers = {};
+        if (token) {
+          headers["Authorization"] = `Bearer ${token}`;
+        }
+        const res = await fetch(`${API_URL}/poems/feed`, { headers });
         if (!res.ok) throw new Error("HTTP error");
         const poems = await res.json();
 
@@ -304,7 +341,7 @@
             deleteBtn = `
                 <button 
                   onclick="deletePoem(event, ${poem.id})" 
-                  style="position: absolute; top: 10px; right: 15px; background: none; border: none; color: var(--text-muted); font-size: 12px; font-family: 'Lora', serif; cursor: pointer; opacity: 0.6; transition: opacity 0.2s; padding: 5px; line-height: 1;"
+                  style="position: absolute; top: 12px; right: 20px; background: none; border: none; color: var(--text-muted); font-size: 12px; font-family: 'Lora', serif; cursor: pointer; opacity: 0.6; transition: opacity 0.2s; padding: 5px; line-height: 1;"
                   onmouseover="this.style.opacity='1'"
                   onmouseout="this.style.opacity='0.6'"
                 >${t.btnDelete}</button>
@@ -312,12 +349,25 @@
           }
 
           html += `
-              <div class="poem-card" id="poem-card-${poem.id}" style="position: relative; background: #ffffff; padding: 20px ${isOwner ? '35px' : '20px'} 20px 20px; border-radius: 6px; border: 1px solid var(--border-color); border-left: 4px solid var(--text-muted); margin-bottom: 20px; box-shadow: 0 2px 8px rgba(139, 94, 60, 0.05); transition: opacity 0.3s ease, transform 0.3s ease;">
+              <div class="poem-card" id="poem-card-${poem.id}" style="position: relative; background: #ffffff; padding: 20px; border-radius: 6px; border: 1px solid var(--border-color); border-left: 4px solid var(--text-muted); margin-bottom: 20px; box-shadow: 0 2px 8px rgba(139, 94, 60, 0.05); transition: opacity 0.3s ease, transform 0.3s ease;">
                 ${deleteBtn}
-                <p style="font-size: 16px; line-height: 1.8; color: var(--text-main); margin: 0 0 15px 0; white-space: pre-wrap; font-style: italic;">${safeContent}</p>
+                <p style="font-size: 16px; line-height: 1.8; color: var(--text-main); margin: 0 0 15px 0; white-space: pre-wrap; font-style: italic; padding-right: 40px;">${safeContent}</p>
                 <div style="display: flex; justify-content: space-between; align-items: center; font-size: 13px; color: var(--text-muted); font-family: 'Lora', 'Inter', sans-serif;">
-                  <span>${t.authorLabel} <strong>${authorName}</strong></span>
-                  <span>${timeAgo}</span>
+                  <div style="display: flex; align-items: center;">
+                    <span>${t.authorLabel} <strong>${authorName}</strong></span>
+                    <span style="margin-left: 12px;">${timeAgo}</span>
+                  </div>
+                  <button 
+                    id="star-btn-${poem.id}" 
+                    onclick="toggleStar(${poem.id})" 
+                    class="star-button ${poem.is_starred ? 'starred' : ''}" 
+                    style="background: none; border: none; font-size: 15px; font-family: 'Lora', serif; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; transition: all 0.2s; color: ${poem.is_starred ? '#fbc02d' : 'var(--text-muted)'}; padding: 4px 0; margin: 0; line-height: 1; vertical-align: middle;"
+                    onmouseover="this.style.transform='scale(1.1)'"
+                    onmouseout="this.style.transform='scale(1)'"
+                  >
+                    <span class="star-icon" style="line-height: 1; vertical-align: middle;">${poem.is_starred ? '★' : '☆'}</span>
+                    <span class="star-count" style="line-height: 1; vertical-align: middle;">${poem.stars_count || 0}</span>
+                  </button>
                 </div>
               </div>
             `;
@@ -325,6 +375,47 @@
         feedArea.innerHTML = html;
       } catch (err) {
         feedArea.innerHTML = `<p style="text-align: center; color: #d84315; font-style: italic;">${t.errConn}</p>`;
+      }
+    }
+
+    async function toggleStar(poemId) {
+      const token = localStorage.getItem("access_token");
+      const t = i18n[currentLang];
+      if (!token) {
+        showToast(currentLang === "vi" ? "Vui lòng đăng nhập để thả sao." : "Please log in to star poems.", "info");
+        return;
+      }
+      try {
+        const res = await fetch(`${API_URL}/poems/${poemId}/star`, {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${token}`
+          }
+        });
+        if (res.status === 401) {
+          showToast(currentLang === "vi" ? "Phiên đăng nhập hết hạn hoặc không hợp lệ." : "Session expired or invalid.", "error");
+          return;
+        }
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.detail || "Error");
+        }
+        const data = await res.json();
+        
+        const starBtn = document.getElementById(`star-btn-${poemId}`);
+        if (starBtn) {
+          const starChar = data.is_starred ? "★" : "☆";
+          starBtn.innerHTML = `<span class="star-icon" style="line-height: 1; vertical-align: middle;">${starChar}</span><span class="star-count" style="line-height: 1; vertical-align: middle;">${data.stars_count}</span>`;
+          if (data.is_starred) {
+            starBtn.classList.add("starred");
+            starBtn.style.color = "#fbc02d";
+          } else {
+            starBtn.classList.remove("starred");
+            starBtn.style.color = "var(--text-muted)";
+          }
+        }
+      } catch (err) {
+        showToast(t.errServerConn, "error");
       }
     }
 

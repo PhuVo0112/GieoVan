@@ -21,8 +21,9 @@ _BASE_DIR_BOOT = os.path.dirname(os.path.abspath(__file__))
 load_dotenv(dotenv_path=os.path.abspath(os.path.join(_BASE_DIR_BOOT, "..", "..", ".env")))
 
 from sqlmodel import Session, select
+from sqlalchemy import func
 from backend.database.db import init_db, get_session
-from backend.app.models import Poem, User
+from backend.app.models import Poem, User, PoemStar
 from backend.app.auth import get_password_hash, verify_password, create_access_token, SECRET_KEY, ALGORITHM
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 import jwt
@@ -544,22 +545,82 @@ async def create_poem(
         raise HTTPException(status_code=500, detail="Không thể lưu bài thơ vào cơ sở dữ liệu.")
 
 @app.get("/api/poems/feed")
-async def get_poems_feed(db: Session = Depends(get_session)):
+async def get_poems_feed(
+    db: Session = Depends(get_session),
+    current_user: Optional[User] = Depends(get_current_user_optional)
+):
     try:
         stmt = select(Poem).where(Poem.is_public == True).order_by(Poem.created_at.desc())
         poems = db.exec(stmt).all()
-        return [
-            {
+        
+        results = []
+        for poem in poems:
+            # Count stars for this poem
+            stars_count = db.exec(
+                select(func.count()).select_from(PoemStar).where(PoemStar.poem_id == poem.id)
+            ).first() or 0
+            
+            is_starred = False
+            if current_user:
+                star_exists = db.exec(
+                    select(PoemStar).where(PoemStar.poem_id == poem.id, PoemStar.user_id == current_user.id)
+                ).first()
+                is_starred = star_exists is not None
+                
+            results.append({
                 "id": poem.id,
                 "content": poem.content,
                 "created_at": format_iso_datetime(poem.created_at),
-                "author": poem.author.username if poem.author else "Ẩn danh"
-            }
-            for poem in poems
-        ]
+                "author": poem.author.username if poem.author else "Ẩn danh",
+                "stars_count": stars_count,
+                "is_starred": is_starred
+            })
+        return results
     except Exception as e:
         logger.error(f"Failed to fetch poems feed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Không thể tải bảng tin thơ.")
+
+@app.post("/api/poems/{poem_id}/star")
+async def toggle_poem_star(
+    poem_id: int,
+    db: Session = Depends(get_session),
+    current_user: Optional[User] = Depends(get_current_user_optional)
+):
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Yêu cầu đăng nhập để thực hiện tương tác.")
+    
+    poem = db.get(Poem, poem_id)
+    if not poem:
+        raise HTTPException(status_code=404, detail="Không tìm thấy bài thơ.")
+        
+    try:
+        stmt = select(PoemStar).where(PoemStar.poem_id == poem_id, PoemStar.user_id == current_user.id)
+        existing_star = db.exec(stmt).first()
+        
+        if existing_star:
+            db.delete(existing_star)
+            is_starred = False
+        else:
+            new_star = PoemStar(user_id=current_user.id, poem_id=poem_id)
+            db.add(new_star)
+            is_starred = True
+            
+        db.commit()
+        
+        # Count total stars
+        stars_count = db.exec(
+            select(func.count()).select_from(PoemStar).where(PoemStar.poem_id == poem_id)
+        ).first() or 0
+        
+        return {
+            "status": "success",
+            "stars_count": stars_count,
+            "is_starred": is_starred
+        }
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Failed to toggle star for poem {poem_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Không thể thực hiện tương tác.")
 
 @app.get("/api/poems/my-poems")
 async def get_my_poems(

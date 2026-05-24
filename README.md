@@ -1,173 +1,285 @@
-# GieoVan - Bilingual Poetry & Rap Assistant
 
-_[Đọc bản Tiếng Việt bên dưới](#gieovan---hệ-thống-hỗ-trợ-sáng-tác-thơ--rap-vietnamese)_
+# GieoVần - Mạng xã hội Thơ ca & Rap Lyrics tích hợp Trợ lý AI
 
-**GieoVan** is a bilingual (Vietnamese & English) lyric writing assistant. It utilizes phonetic extraction, vector-based rhyme filtering, and contextual language models to suggest matching verses based on syllable count, rhyme scheme, and mood.
+> **English Version Notice:** Scroll down to the bottom half of this document to read the English documentation.
 
 ---
 
-## Key Features
+## 📝 1. Tổng quan dự án
 
-- **Phonetic Analysis:** Extracts the end-rhyme of the last word using CMU Dict for English and a custom phonetic algorithm for Vietnamese.
-- **Language Detection:** Adapts processing logic and prompts based on the user-selected language (VI/EN) from the client interface.
-- **Context-Aware RAG with Hard Filtering:** Retrieves contextually and phonetically matching references from ChromaDB using strict vector metadata filtering (end_rhyme, mood, author).
-- **Constrained Generation:** Integrates Gemini 2.5 Flash to generate subsequent lines that adhere to the established syllable count, extracted rhyme, and desired mood.
+**GieoVần** không chỉ dừng lại ở một công cụ gieo vần hay hỗ trợ tìm kiếm âm tiết đơn thuần. Nền tảng đã chính thức tiến hóa thành một **Mạng xã hội Thơ ca & Rap Lyrics hoàn chỉnh**, nơi các nghệ sĩ và nhà thơ có thể kết nối tâm hồn, tự do sáng tạo tác phẩm dưới sự trợ lực đắc lực của mô hình ngôn ngữ lớn (Gemini 2.5) và cơ sở dữ liệu vector ngữ cảnh (RAG). 
 
-## Tech Stack
+Nền tảng tôn vinh giá trị chất xám nghệ thuật theo phong cách product của GitHub: nói không với các nút like/tim tương tác drama vô tri, tập trung gắn kết cộng đồng thông qua hệ thống **thả Star** độc bản cho các tác phẩm.
 
-- **Backend Framework:** FastAPI, Python
-- **Vector Database:** ChromaDB
-- **LLM:** Google GenAI SDK (Gemini 2.5 Flash)
-- **Linguistics & Phonetics:** `pronouncing` (CMU Dict), `langdetect`
-- **Environment & Tooling:** `python-dotenv`, `uvicorn`, `uv` (or `pip`)
+---
 
-## Installation & Setup
+## ⚡ 2. Bảng tính năng chuẩn mạng xã hội (Feature Matrix)
 
-### 1. Clone the repository
+| Phân hệ (Module) | Tính năng chi tiết (Feature) | Mô tả công nghệ & Nghiệp vụ (Tech & Business Flow) |
+| :--- | :--- | :--- |
+| **Authentication & User Management** | Đăng ký & Đăng nhập bảo mật | Sử dụng cơ chế băm mật khẩu `bcrypt` một chiều tại Backend, cấp phát và thu hồi `JWT Token` động qua HTTP Bearer authorization để bảo vệ nghiêm ngặt các luồng dữ liệu cá nhân. |
+| **Social Mechanics (Tương tác MXH)** | Bảng tin cộng đồng (Poetry Feed) | Nơi hiển thị các bài viết/rap được cộng đồng công khai (Publish), sắp xếp tự động theo thời gian thực (Real-time). |
+| | Thả Star kiểu GitHub (GitHub-style Stars) | Người dùng có thể **Star / Unstar** các bài viết yêu thích để lưu trữ. Hệ thống xử lý thông qua mối quan hệ Nhiều-Nhiều (Many-to-Many Bridge) giữa bảng User và Poem. |
+| | Góc lưu trữ cá nhân (My Archive) | Kho lưu trữ cá thù hiển thị tác phẩm của riêng User, hỗ trợ quản lý ẩn danh, chuyển đổi trạng thái công khai/riêng tư hoặc Xóa bài thơ vĩnh viễn khỏi DB. |
+| **Advanced AI Assistant** | Phân tích Ngữ âm học (Phonetic Analysis) | Tự động bóc tách phần vần (Vần thông) của hạ từ cuối câu. Hỗ trợ tiếng Anh qua CMU Dict (`pronouncing`) và thuật toán tách nguyên âm tự chế cho tiếng Việt. |
+| | 3 Chế độ gieo vần tùy chọn | Hỗ trợ 3 tùy chọn: **Một từ cuối** (`one_word` - vần đơn), **Hai từ cuối** (`two_words` - vần kép hoàn hảo), và **Thuần ngữ nghĩa** (`semantic_only` - free verse tập trung mạch cảm xúc). |
+| **Hybrid Vector Database (RAG)** | Truy vấn ngữ cảnh tương đồng | Tìm kiếm tương đồng ngữ nghĩa trên collection `vietnamese_lyrics` của ChromaDB bằng đường dẫn tuyệt đối, làm Context reference trợ lực cho Gemini sinh câu bám sát chủ đề, chống ảo giác. |
 
-```bash
-git clone https://github.com/yourusername/GieoVan.git
-cd GieoVan
+---
+
+## 🏗️ 3. Kiến trúc hệ thống (Project Architecture)
+
+Hệ thống được thiết kế theo cấu trúc Monolith tinh gọn, chia tách lớp logic rõ ràng và tối ưu luồng xử lý bất đồng bộ (Async Layer):
+
+```mermaid
+graph TD
+    A[Frontend: Vanilla HTML/CSS/JS] <-->|Rest API / JWT Auth| B[FastAPI Backend]
+    B <-->|SQLModel ORM| C[(SQLite Relational DB)]
+    B <-->|Many-to-Many Bridge| F[(PoemStar Table)]
+    B <-->|Absolute Path Connection| D[(ChromaDB Vector DB - vietnamese_lyrics)]
+    B <-->|Google GenAI SDK| E[Google Gemini 2.5 Flash]
+
 ```
 
-### 2. Setup Environment Variables
+### Chi tiết Stack công nghệ:
 
-Create a `.env` file in the root directory and add your Google Gemini API key:
+1. **FastAPI (Backend Framework)**: Định tuyến API bất đồng bộ hiệu năng cao, tích hợp CORS Middleware bọc lót bảo mật phía Client.
+2. **SQLModel (Relational ORM)**: Quản lý mối quan hệ dữ liệu hệ thống (`User`, `Poem`), bọc thêm bảng trung gian `PoemStar` xử lý luồng tương tác Many-to-Many.
+3. **ChromaDB (Vector Database)**: Đóng vai trò là công cụ RAG. Lọc cứng (Hard Filter) chính xác dữ liệu dựa trên metadata schema thực tế:
+```python
+{
+    'end_rhyme': str,  # Vần gốc đã cạo sạch thanh điệu
+    'mood': str,       # Cảm xúc bài nhạc/thơ (melancholic, energetic,...)
+    'author': str,     # Tên nghệ sĩ / Tác giả gốc của lyric
+}
 
-```env
-GEMINI_API_KEY=your_gemini_api_key_here
 ```
 
-### 3. Install Dependencies
 
-You can use `uv` (recommended for speed) or `pip`:
+4. **Google GenAI SDK (LLM Layer)**: Gọi mô hình `gemini-2.5-flash` kèm cấu hình `automatic_function_calling=False` để triệt tiêu lỗi spam request ngầm, hạ `temperature=0.3` kết hợp bộ lọc Regex bùa hộ mệnh bóc tách khối chuỗi dữ liệu `{...}`.
 
-```bash
-# Using uv
-uv sync
+---
 
-# OR using pip
-pip install -r requirements.txt
-```
-
-### 4. Initialize the Vector Database
-
-Before running the backend, you must ingest the raw lyric data into the local ChromaDB.
-
-```bash
-python ingest_data.py
-```
-
-_(This script will process the raw data, extract phonetics, and store embeddings in the local `neon_van_db` folder.)_
-
-### 5. Run the Backend
-
-Start the FastAPI server:
-
-```bash
-uvicorn main:app --reload
-```
-
-The API will be available at `http://localhost:8000`. You can now open `index.html` in your browser to interact with GieoVan!
-
-## 📂 Project Structure
+## 📂 4. Cấu trúc thư mục (Directory Layout)
 
 ```text
 GieoVan/
-│
-├── main.py               # Main FastAPI backend (RAG & Gemini integration)
-├── ingest_data.py        # Data ingestion script for ChromaDB
-├── raw_data.json         # Raw lyrical data source (mock/actual)
-├── neon_van_db/          # Persistent ChromaDB storage (auto-generated)
-├── index.html            # Frontend UI (Vanilla JS, HTML, CSS)
-├── .env                  # Environment variables (API Keys)
-└── .gitignore            # Git ignore rules
+├── .env                     # File cấu hình biến môi trường (GEMINI_API_KEY, DATABASE_URL)
+├── pyproject.toml           # PEP 518 cấu hình dự án và danh sách dependencies của uv
+├── requirements.txt         # Lock file danh sách thư viện Python
+├── README.md                # Tài liệu dự án song ngữ (File này)
+├── backend/                 # Mã nguồn FastAPI Backend
+│   ├── app/
+│   │   ├── auth.py          # Xử lý cấp phát/thu hồi JWT và mã hóa bcrypt
+│   │   └── models.py        # Định nghĩa SQLModel (User, Poem, PoemStar Many-to-Many)
+│   ├── database/
+│   │   └── db.py            # Kết nối cơ sở dữ liệu quan hệ và quản lý session
+│   ├── ingest.py            # Script trích xuất ngữ âm và nạp dữ liệu vào ChromaDB
+│   ├── ingest_data.py       # Nạp nhanh mock data lyrics phục vụ RAG
+│   ├── main.py              # API Endpoints, RAG Engine, Regex Sanitizer & Gemini Logic
+│   ├── raw_data.json        # Dataset thô lyrics Việt & Anh
+│   ├── verify_readme.py     # Script kiểm thử cấu trúc tài liệu dự án
+│   └── neon_van_db/         # Cơ sở dữ liệu Vector DB lưu trữ vật lý (ChromaDB)
+└── frontend/                # Giao diện tĩnh phía Client (Vanilla HTML/CSS/JS)
+    ├── index.html           # Workspace chắp bút sáng tác thơ (Compose Workspace)
+    ├── login.html           # Giao diện đăng nhập hệ thống
+    ├── register.html        # Giao diện đăng ký thành viên
+    ├── feed.html            # Bảng tin cộng đồng tương tác Star (Poetry Feed)
+    ├── archive.html         # Góc lưu trữ cá nhân nghệ sĩ (My Archive)
+    └── assets/              # Hệ thống CSS Stylesheets chung và Logo
+
 ```
 
 ---
 
-<br>
+## ⚙️ 5. Hướng dẫn thiết lập & Vận hành (Installation & Setup)
 
-# 🎙️ GieoVan - Trợ lý AI viết Thơ & Rap (Vietnamese)
-
-**GieoVan** là một trợ lý AI tiên tiến hỗ trợ viết rap và thơ song ngữ (Vietnamese & English). Bằng cách kết hợp khả năng tự động bóc tách âm vị, lọc vần cứng qua Vector Database và sinh câu theo ngữ cảnh bằng Gemini 2.5 Flash, GieoVan giúp bạn dễ dàng tìm thấy sự đồng điệu trong từng câu chữ.
-
----
-
-## Tính năng cốt lõi
-
-- **Phonetic Analysis (Phân tích ngữ âm):** Trích xuất vần điệu chuẩn xác từ từ cuối cùng của câu bằng thuật toán tiếng Việt tùy chỉnh và CMU Dict cho tiếng Anh.
-- **Smart Language Detection (Nhận diện ngôn ngữ thông minh):** Thay đổi logic xử lý và prompt sinh câu dựa trên ngôn ngữ (VI/EN) được người dùng tùy chọn từ Frontend.
-- **Dynamic Context-Aware RAG with Hard Filtering:** RAG động kết hợp lọc cứng (Hard Filter). Tìm kiếm các câu có cùng vần, cùng cảm xúc (mood) và tác giả từ ChromaDB làm ngữ cảnh tham khảo.
-- **Gemini-Powered Lyric Generation:** Tận dụng sức mạnh của Google Gemini 2.5 Flash để chắp bút sinh ra các câu tiếp theo, đảm bảo khớp vần, khớp cảm xúc và tương đương số lượng âm tiết.
-
-## Công nghệ sử dụng
-
-- **Backend Framework:** FastAPI, Python
-- **Vector Database:** ChromaDB
-- **LLM:** Google GenAI SDK (Gemini 2.5 Flash)
-- **Ngôn ngữ học:** `pronouncing` (từ điển CMU), `langdetect`
-- **Công cụ & Môi trường:** `python-dotenv`, `uvicorn`, `uv` (hoặc `pip`)
-
-## Hướng dẫn cài đặt
-
-### 1. Clone repository
+### Bước 1: Clone Repository & Di chuyển vào thư mục
 
 ```bash
-git clone https://github.com/yourusername/GieoVan.git
+git clone [https://github.com/yourusername/GieoVan.git](https://github.com/yourusername/GieoVan.git)
 cd GieoVan
+
 ```
 
-### 2. Thiết lập Biến môi trường
+### Bước 2: Khởi tạo biến môi trường (.env)
 
-Tạo file `.env` ở thư mục gốc của dự án và thêm API key của Google Gemini:
+Tạo file `.env` tại thư mục gốc của dự án:
 
 ```env
-GEMINI_API_KEY=your_gemini_api_key_here
+GEMINI_API_KEY=your_google_gemini_api_key_here
+DATABASE_URL=sqlite:///gieovan.db
+
 ```
 
-### 3. Cài đặt Dependencies
+### Bước 3: Cài đặt thư viện phụ thuộc bằng `uv`
 
-Bạn có thể sử dụng trình quản lý gói `uv` (tốc độ cao) hoặc `pip` truyền thống:
+Đồng bộ hóa môi trường ảo cực nhanh thông qua công cụ quản lý package hiện đại `uv`:
 
 ```bash
-# Dùng uv
 uv sync
 
-# HOẶC dùng pip
-pip install -r requirements.txt
 ```
 
-### 4. Khởi tạo Vector Database
+### Bước 4: Khởi tạo dữ liệu nền (Seed Database)
 
-Trước khi khởi động server, bạn cần nạp dữ liệu thô vào cơ sở dữ liệu cục bộ (ChromaDB).
+Chạy script phân tích ngữ âm học để nạp kho dữ liệu lyrics gốc vào Vector DB ChromaDB:
 
 ```bash
-python ingest_data.py
+uv run python backend/ingest.py
+
 ```
 
-_(Script này sẽ đọc kho dữ liệu thô, phân tích vần, thanh điệu và lưu vào thư mục `neon_van_db`.)_
+### Bước 5: Khởi chạy ứng dụng mạng xã hội
 
-### 5. Chạy Backend
-
-Khởi động server FastAPI:
+Kích hoạt server backend FastAPI thông qua tiến trình Uvicorn:
 
 ```bash
-uvicorn main:app --reload
+uv run uvicorn backend.main:app --reload
+
 ```
 
-API sẽ chạy tại `http://localhost:8000`. Bây giờ, bạn chỉ cần mở file `index.html` bằng trình duyệt để trải nghiệm GieoVan!
+Hệ thống mạng xã hội sẽ khởi chạy tại địa chỉ `http://localhost:8000`.
 
-## Cấu trúc dự án
+---
+
+---
+
+# Bilingual AI Poetry & Rap Lyrics Social Network (English Version)
+
+## 📝 1. Project Overview
+
+**GieoVần** is a comprehensive **Poetry & Rap Lyrics Social Network** engineered for digital wordsmiths and recording artists. The ecosystem combines the power of Large Language Models (Gemini 2.5) and a local contextual Vector Database (RAG) to establish an advanced, structurally-constrained writing workspace.
+
+Adhering to the clean product philosophy of GitHub, generic social interactions like hearts or likes are entirely replaced by a custom **Star** mechanism to authentically respect and archive creative intellectual property without social noise.
+
+---
+
+## ⚡ 2. Feature Matrix
+
+| Module | Feature | Tech & Business Flow Description |
+| --- | --- | --- |
+| **Authentication & User Management** | Secure Auth Routing | Encrypts credentials via one-way `bcrypt` hashing on the backend, issuing dynamic `JWT Tokens` via HTTP Bearer headers to protect user-specific mutation pipelines. |
+| **Social Mechanics** | Real-time Poetry Feed | Aggregates and displays public poems contributed by the platform's active users, dynamically sorted in real-time. |
+|  | GitHub-style Stars | Users can toggled **Star / Unstar** actions on target entries. Backed by a structural Many-to-Many join-table mapping Users and Poems. |
+|  | My Archive Repository | Personal workspace for authors to manage privacy toggles, adjust publication statuses, or execute hard deletion routines. |
+| **Advanced AI Assistant** | Phonetic Analysis Engine | Automatically extracts end rhymes. Backed by CMU Dict (`pronouncing`) for English phonetics and a custom vowel-stripping model for Vietnamese syllables. |
+|  | 3 Configurable Rhyme Modes | Options: Single end word (`one_word`), Couplet rhyme (`two_words`), or Semantics only (`semantic_only` - disables end-rhyming logic to focus on emotion and flow). |
+| **Hybrid Vector Database (RAG)** | Similarity Context Retrieval | Executes vector similarity context queries against ChromaDB's `vietnamese_lyrics` collection using an absolute system path to augment Gemini's prompt layer. |
+
+---
+
+## 🏗️ 3. Project Architecture
+
+The platform architecture implements a clean, high-performance Monolithic layer optimized for asynchronous IO boundaries:
+
+```mermaid
+graph TD
+    A[Frontend: Vanilla HTML/CSS/JS] <-->|Rest API / JWT Auth| B[FastAPI Backend]
+    B <-->|SQLModel ORM| C[(SQLite Relational DB)]
+    B <-->|Many-to-Many Bridge| F[(PoemStar Table)]
+    B <-->|Absolute Path Connection| D[(ChromaDB Vector DB - vietnamese_lyrics)]
+    B <-->|Google GenAI SDK| E[Google Gemini 2.5 Flash]
+
+```
+
+### Technology Stack Details:
+
+1. **FastAPI**: Handles low-latency, asynchronous API routing wrapped with absolute client-side CORS middleware.
+2. **SQLModel**: Coordinates structural database mappings (`User`, `Poem`) while maintaining the `PoemStar` association bridge.
+3. **ChromaDB**: Hosts the vector retrieval storage, performing strict hard filtering logic based on the production metadata schema:
+```python
+{
+    'end_rhyme': str,  # Base phonetic sound string stripped of language tone
+    'mood': str,       # Emotional mood filter (melancholic, energetic, etc.)
+    'author': str,     # Original lyricist/artist attribution string
+}
+
+```
+
+
+4. **Google GenAI SDK**: Dispatches processing calls to `gemini-2.5-flash` with `automatic_function_calling=False` to eradicate loop exceptions, constrained at `temperature=0.3` and cleaned via structural multi-line Regex matching brackets `{...}`.
+
+---
+
+## 📂 4. Directory Layout
 
 ```text
 GieoVan/
-│
-├── main.py               # Backend chính (Xử lý API, RAG, gọi Gemini)
-├── ingest_data.py        # Script xử lý và nạp dữ liệu vào ChromaDB
-├── raw_data.json         # Kho dữ liệu thô chứa các câu rap/thơ
-├── neon_van_db/          # Database cục bộ của ChromaDB (tự sinh)
-├── index.html            # Giao diện người dùng (HTML/CSS/JS thuần)
-├── .env                  # Chứa biến môi trường bảo mật (API Key)
-└── .gitignore            # Cấu hình bỏ qua file cho Git
+├── .env                     # Global deployment environment variables (API Key, DB URL)
+├── pyproject.toml           # PEP 518 workspace configuration and tool package definitions
+├── requirements.txt         # Pinned application library requirements lockfile
+├── README.md                # Bilingual documentation file (This file)
+├── backend/                 # Core FastAPI backend implementation view
+│   ├── app/
+│   │   ├── auth.py          # Password processing, hashing and tokenization logic
+│   │   └── models.py        # Core model schemas (User, Poem, PoemStar association entity)
+│   ├── database/
+│   │   └── db.py            # Relational database configurations and context engines
+│   ├── ingest.py            # Structural ingestion pipeline into the local Chroma storage
+│   ├── ingest_data.py       # Helper seeding tool for baseline reference materials
+│   ├── main.py              # Application runtime routes, RAG matching and LLM connectors
+│   ├── raw_data.json        # Base bilingual song lyric dataset source
+│   ├── verify_readme.py     # Production-grade asset verification code
+│   └── neon_van_db/         # Embedded database directory vectors partition (ChromaDB)
+└── frontend/                # Client layer serving the user workspaces
+    ├── index.html           # Multi-mode poem compose workspace interface
+    ├── login.html           # User authentication entry portal
+    ├── register.html        # User onboarding registration portal
+    ├── feed.html            # Real-time star-interactive public poetry feed log
+    ├── archive.html         # User specific secure storage views (My Archive)
+    └── assets/              # Global asset files, styles sheets, and font resources
+
 ```
+
+---
+
+## ⚙️ 5. Installation & Setup
+
+### Step 1: Clone Repository & Access Directory
+
+```bash
+git clone [https://github.com/yourusername/GieoVan.git](https://github.com/yourusername/GieoVan.git)
+cd GieoVan
+
+```
+
+### Step 2: Initialize Environment Variables (.env)
+
+Create a `.env` file inside the root directory:
+
+```env
+GEMINI_API_KEY=your_google_gemini_api_key_here
+DATABASE_URL=sqlite:///gieovan.db
+
+```
+
+### Step 3: Sync Dependencies via `uv`
+
+Synchronize the virtual environment execution packages instantly using `uv`:
+
+```bash
+uv sync
+
+```
+
+### Step 4: Seed the Local Vector Database
+
+Parse phonetics and seed the vector matching store layout partition:
+
+```bash
+uv run python backend/ingest.py
+
+```
+
+### Step 5: Boot Up the Social Platform
+
+Activate the FastAPI backend service engine via Uvicorn:
+
+```bash
+uv run uvicorn backend.main:app --reload
+
+```
+
+The application will be served locally at `http://localhost:8000`.
+
