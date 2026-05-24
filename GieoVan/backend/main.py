@@ -500,7 +500,7 @@ async def login(login_data: UserLogin, db: Session = Depends(get_session)):
     if not user or not verify_password(login_data.password, user.hashed_password):
         raise HTTPException(status_code=401, detail="Tên tài khoản hoặc mật khẩu không chính xác.")
         
-    token = create_access_token(data={"sub": user.username, "user_id": user.id})
+    token = create_access_token(data={"sub": user.username, "user_id": user.id, "is_admin": user.is_admin})
     return {"access_token": token, "token_type": "bearer"}
 
 class PoemCreate(BaseModel):
@@ -524,6 +524,15 @@ async def get_current_user_optional(
         return db.get(User, user_id)
     except Exception:
         return None
+
+async def get_current_admin(
+    current_user: Optional[User] = Depends(get_current_user_optional)
+) -> User:
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Yêu cầu đăng nhập để truy cập trang quản trị.")
+    if not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Bạn không có quyền truy cập khu vực này.")
+    return current_user
 
 @app.post("/api/poems")
 async def create_poem(
@@ -698,10 +707,82 @@ async def delete_poem(
         logger.error(f"Failed to delete poem: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Không thể xóa bài thơ.")
 
+@app.get("/api/admin/users")
+async def admin_get_users(
+    db: Session = Depends(get_session),
+    current_admin: User = Depends(get_current_admin)
+):
+    try:
+        stmt = select(User)
+        users = db.exec(stmt).all()
+        
+        results = []
+        for u in users:
+            poem_count = db.exec(
+                select(func.count()).select_from(Poem).where(Poem.author_id == u.id)
+            ).first() or 0
+            results.append({
+                "id": u.id,
+                "username": u.username,
+                "email": u.email,
+                "is_admin": u.is_admin,
+                "created_at": format_iso_datetime(u.created_at),
+                "poem_count": poem_count
+            })
+        return results
+    except Exception as e:
+        logger.error(f"Failed to fetch users for admin: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Không thể tải danh sách người dùng.")
+
+@app.get("/api/admin/poems")
+async def admin_get_poems(
+    db: Session = Depends(get_session),
+    current_admin: User = Depends(get_current_admin)
+):
+    try:
+        stmt = select(Poem).order_by(Poem.created_at.desc())
+        poems = db.exec(stmt).all()
+        return [
+            {
+                "id": poem.id,
+                "content": poem.content,
+                "is_public": poem.is_public,
+                "created_at": format_iso_datetime(poem.created_at),
+                "author": poem.author.username if poem.author else "Ẩn danh"
+            }
+            for poem in poems
+        ]
+    except Exception as e:
+        logger.error(f"Failed to fetch poems for admin: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Không thể tải danh sách bài viết.")
+
+@app.delete("/api/admin/poems/{poem_id}")
+async def admin_delete_poem(
+    poem_id: int,
+    db: Session = Depends(get_session),
+    current_admin: User = Depends(get_current_admin)
+):
+    poem = db.get(Poem, poem_id)
+    if not poem:
+        raise HTTPException(status_code=404, detail="Không tìm thấy bài thơ.")
+    try:
+        db.exec(text(f"DELETE FROM poemstar WHERE poem_id = {poem_id}"))
+        db.delete(poem)
+        db.commit()
+        return {"status": "success", "message": "Bài thơ đã được xóa vĩnh viễn bởi quản trị viên."}
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Failed to delete poem {poem_id} by admin: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Không thể xóa bài thơ.")
+
 # 5. Route Root trả về trang chủ index.html từ thư mục pages/ mới
 @app.get("/")
 async def read_root():
     return FileResponse(os.path.join(FRONTEND_DIR, "index.html"))
+
+@app.get("/admin")
+async def read_admin():
+    return FileResponse(os.path.join(FRONTEND_DIR, "admin.html"))
 
 @app.get("/register")
 async def read_register():

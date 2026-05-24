@@ -75,6 +75,8 @@
       <a href="/archive" id="navTabArchive"
         style="display: none; color: var(--text-muted); font-weight: 500; text-decoration: none; padding-bottom: 5px; transition: color 0.3s ease;">Góc
         của tôi</a>
+      <a href="/admin" id="navTabAdmin"
+        style="display: none; color: var(--text-muted); font-weight: 500; text-decoration: none; padding-bottom: 5px; transition: color 0.3s ease;">Quản trị</a>
     </nav>
 
     <div id="feedArea">
@@ -106,6 +108,7 @@
         tabWrite: "Chắp Bút Làm Thơ",
         tabFeed: "Bảng Tin Thơ Ca",
         tabArchive: "Góc của tôi",
+        tabAdmin: "Quản trị",
         login: "Đăng nhập",
         register: "Đăng ký",
         logout: "Đăng xuất",
@@ -131,6 +134,7 @@
         tabWrite: "Compose Poetry",
         tabFeed: "Poetry Feed",
         tabArchive: "My Archive",
+        tabAdmin: "Admin Panel",
         login: "Log In",
         register: "Sign Up",
         logout: "Log Out",
@@ -219,6 +223,8 @@
       document.getElementById("navTabWrite").innerText = t.tabWrite;
       document.getElementById("navTabFeed").innerText = t.tabFeed;
       document.getElementById("navTabArchive").innerText = t.tabArchive;
+      const navTabAdmin = document.getElementById("navTabAdmin");
+      if (navTabAdmin) navTabAdmin.innerText = t.tabAdmin;
       checkAuth();
       loadFeed();
     }
@@ -228,6 +234,7 @@
       const authStatusArea = document.getElementById("authStatusArea");
       const t = i18n[currentLang];
       const navTabArchive = document.getElementById("navTabArchive");
+      const navTabAdmin = document.getElementById("navTabAdmin");
 
       if (token) {
         try {
@@ -238,6 +245,11 @@
               <a href="#" onclick="handleLogout(event)" style="color: var(--text-main); font-weight: 600; text-decoration: none; border-bottom: 1px dashed var(--text-main);">${t.logout}</a>
             `;
           if (navTabArchive) navTabArchive.style.display = "inline-block";
+          if (payload.is_admin) {
+            if (navTabAdmin) navTabAdmin.style.display = "inline-block";
+          } else {
+            if (navTabAdmin) navTabAdmin.style.display = "none";
+          }
         } catch (e) {
           localStorage.removeItem("access_token");
           showGuestNav(authStatusArea);
@@ -254,7 +266,9 @@
           <a href="/register" style="color: var(--text-main); font-weight: 600; text-decoration: none;">${t.register}</a>
         `;
       const navTabArchive = document.getElementById("navTabArchive");
+      const navTabAdmin = document.getElementById("navTabAdmin");
       if (navTabArchive) navTabArchive.style.display = "none";
+      if (navTabAdmin) navTabAdmin.style.display = "none";
     }
 
     function handleLogout(event) {

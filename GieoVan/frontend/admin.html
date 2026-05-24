@@ -1,0 +1,520 @@
+<!doctype html>
+<html lang="vi">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Gieo Vần - Quản Trị Viên</title>
+  <link rel="icon" type="image/png" href="/assets/images/logo.png?v=3" />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;1,400&family=Playfair+Display:ital,wght@0,400..900;1,400..900&display=swap"
+    rel="stylesheet" />
+  <link rel="stylesheet" href="/assets/css/style.css" />
+  <style>
+    .admin-container {
+      background: #ffffff;
+      padding: 30px;
+      border-radius: 8px;
+      border: 1px solid var(--border-color);
+      box-shadow: 0 4px 15px rgba(139, 94, 60, 0.08);
+      margin-top: 20px;
+    }
+
+    .admin-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 25px;
+      border-bottom: 2px solid var(--border-color);
+      padding-bottom: 15px;
+    }
+
+    .admin-title {
+      font-family: 'Playfair Display', serif;
+      font-size: 24px;
+      color: var(--text-main);
+      margin: 0;
+    }
+
+    .admin-tabs {
+      display: flex;
+      gap: 15px;
+      margin-bottom: 25px;
+    }
+
+    .admin-tab {
+      background: #faf8f5;
+      border: 1px solid var(--border-color);
+      color: var(--text-muted);
+      padding: 10px 20px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-family: 'Lora', serif;
+      font-size: 14.5px;
+      font-weight: 600;
+      transition: all 0.3s ease;
+    }
+
+    .admin-tab.active {
+      background: var(--text-main);
+      color: #ffffff;
+      border-color: var(--text-main);
+    }
+
+    .admin-table-container {
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-family: 'Lora', 'Inter', sans-serif;
+      font-size: 14px;
+      text-align: left;
+    }
+
+    th, td {
+      padding: 12px 15px;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    th {
+      background: #faf8f5;
+      color: var(--text-main);
+      font-weight: 600;
+    }
+
+    tr:hover {
+      background: #fafafa;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-size: 11.5px;
+      font-weight: 600;
+    }
+
+    .badge-admin {
+      background: rgba(216, 67, 21, 0.1);
+      color: #d84315;
+    }
+
+    .badge-user {
+      background: rgba(141, 110, 99, 0.15);
+      color: var(--text-main);
+    }
+
+    .badge-public {
+      background: rgba(46, 125, 50, 0.1);
+      color: #2e7d32;
+    }
+
+    .badge-private {
+      background: #f5f5f5;
+      color: #757575;
+    }
+
+    .btn-action-delete {
+      background: #e53935;
+      color: #ffffff;
+      border: none;
+      padding: 6px 12px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-family: 'Lora', serif;
+      font-weight: 600;
+      font-size: 12.5px;
+      transition: background 0.2s;
+    }
+
+    .btn-action-delete:hover {
+      background: #c62828;
+    }
+
+    .empty-state {
+      text-align: center;
+      color: var(--text-muted);
+      font-style: italic;
+      padding: 40px 0;
+    }
+
+    .poem-preview {
+      max-width: 400px;
+      white-space: pre-wrap;
+      font-style: italic;
+      line-height: 1.5;
+    }
+  </style>
+  <script>
+    // Kiểm tra quyền Admin ngay lập tức trước khi tải DOM
+    const token = localStorage.getItem("access_token");
+    if (!token) {
+      window.location.replace("/login");
+    } else {
+      try {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        if (!payload.is_admin) {
+          window.location.replace("/login");
+        }
+      } catch (e) {
+        localStorage.removeItem("access_token");
+        window.location.replace("/login");
+      }
+    }
+  </script>
+</head>
+
+<body>
+  <div class="container">
+    <div class="auth-status-container" id="authStatusArea"
+      style="position: absolute; top: 20px; left: 20px; font-size: 13.5px; font-family: 'Lora', 'Inter', sans-serif; color: var(--text-muted);">
+    </div>
+    <button class="lang-toggle" id="langBtn" onclick="toggleLanguage()">
+      EN
+    </button>
+
+    <header class="hero-banner">
+      <div class="banner-overlay"></div>
+      <div class="banner-content">
+        <h1 id="ui-title" class="banner-title">Trang Quản Trị Viên</h1>
+        <p id="ui-subtitle" class="banner-tagline">
+          "Giám sát và kiểm duyệt hệ thống mạng xã hội GieoVần"
+        </p>
+      </div>
+    </header>
+
+    <nav class="nav-tabs"
+      style="display: flex; gap: 20px; justify-content: center; margin-bottom: 30px; border-bottom: 1px solid var(--border-color); padding-bottom: 15px; font-family: 'Lora', 'Inter', sans-serif; font-size: 15px;">
+      <a href="/" id="navTabWrite"
+        style="color: var(--text-muted); font-weight: 500; text-decoration: none; padding-bottom: 5px; transition: color 0.3s ease;">Chắp
+        Bút Làm Thơ</a>
+      <a href="/feed" id="navTabFeed"
+        style="color: var(--text-muted); font-weight: 500; text-decoration: none; padding-bottom: 5px; transition: color 0.3s ease;">Bảng
+        Tin Thơ Ca</a>
+      <a href="/archive" id="navTabArchive"
+        style="display: none; color: var(--text-muted); font-weight: 500; text-decoration: none; padding-bottom: 5px; transition: color 0.3s ease;">Góc
+        của tôi</a>
+      <a href="/admin" id="navTabAdmin"
+        style="color: var(--text-main); font-weight: 600; text-decoration: none; border-bottom: 2px solid var(--text-main); padding-bottom: 5px;">Quản
+        Trị Viên</a>
+    </nav>
+
+    <div class="admin-container">
+      <div class="admin-header">
+        <h2 class="admin-title" id="panelTitle">Bảng điều khiển hệ thống</h2>
+        <span style="font-family: 'Lora', serif; font-size: 13.5px; color: var(--text-muted);">Quyền hạn: <strong>Super Admin</strong></span>
+      </div>
+
+      <div class="admin-tabs">
+        <button class="admin-tab active" id="tabUsersBtn" onclick="switchTab('users')">Quản lý Thành Viên</button>
+        <button class="admin-tab" id="tabPoemsBtn" onclick="switchTab('poems')">Quản lý Bài Thơ</button>
+      </div>
+
+      <!-- Tab 1: Quản lý User -->
+      <div id="usersPanel" class="admin-table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Tên tài khoản</th>
+              <th>Email</th>
+              <th>Phân quyền</th>
+              <th>Số bài thơ</th>
+              <th>Ngày tham gia</th>
+            </tr>
+          </thead>
+          <tbody id="usersTableBody">
+            <!-- Nạp động qua JS -->
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Tab 2: Quản lý Bài thơ -->
+      <div id="poemsPanel" class="admin-table-container" style="display: none;">
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Tác giả</th>
+              <th>Nội dung tác phẩm</th>
+              <th>Trạng thái</th>
+              <th>Ngày sáng tác</th>
+              <th>Hành động</th>
+            </tr>
+          </thead>
+          <tbody id="poemsTableBody">
+            <!-- Nạp động qua JS -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const IS_LOCAL = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1" || window.location.hostname === "";
+    const API_URL = IS_LOCAL
+      ? "http://127.0.0.1:8000/api"
+      : "https://gieovan.onrender.com/api";
+    let currentLang = localStorage.getItem("preferred_lang") || "vi";
+
+    const i18n = {
+      vi: {
+        title: "Trang Quản Trị Viên",
+        subtitle: '"Giám sát và kiểm duyệt hệ thống mạng xã hội GieoVần"',
+        tabWrite: "Chắp Bút Làm Thơ",
+        tabFeed: "Bảng Tin Thơ Ca",
+        tabArchive: "Góc của tôi",
+        tabAdmin: "Quản Trị Viên",
+        logout: "Đăng xuất",
+        welcome: "Chào",
+        loading: "Đang tải dữ liệu kiểm duyệt...",
+        errConn: "Lỗi kết nối máy chủ quản trị.",
+        confirmDeletePoem: "Bạn có chắc chắn muốn XÓA VĨNH VIỄN bài viết vi phạm này khỏi hệ thống?",
+        toastDeleted: "Đã xóa bài viết vi phạm thành công.",
+        deleteBtnText: "Xóa bài vi phạm"
+      },
+      en: {
+        title: "Admin Panel",
+        subtitle: '"Audit and moderate the GieoVần social platform"',
+        tabWrite: "Compose Poetry",
+        tabFeed: "Poetry Feed",
+        tabArchive: "My Archive",
+        tabAdmin: "Admin Panel",
+        logout: "Log Out",
+        welcome: "Welcome",
+        loading: "Loading moderation logs...",
+        errConn: "Admin server connection lost.",
+        confirmDeletePoem: "Are you sure you want to PERMANENTLY delete this offending poem?",
+        toastDeleted: "Offending poem removed successfully.",
+        deleteBtnText: "Remove Post"
+      }
+    };
+
+    function toggleLanguage() {
+      currentLang = currentLang === "vi" ? "en" : "vi";
+      localStorage.setItem("preferred_lang", currentLang);
+      updateUI();
+    }
+
+    function showToast(message, type = "info") {
+      const existing = document.querySelector(".custom-toast");
+      if (existing) existing.remove();
+      let container = document.querySelector(".toast-container") || document.createElement("div");
+      container.className = "toast-container";
+      document.body.appendChild(container);
+      const toast = document.createElement("div");
+      toast.className = `custom-toast toast-${type}`;
+      toast.innerText = message;
+      container.appendChild(toast);
+      setTimeout(() => toast.remove(), 3000);
+    }
+
+    function showConfirm(message) {
+      if (document.querySelector(".custom-modal-overlay")) return Promise.resolve(false);
+      return new Promise((resolve) => {
+        const overlay = document.createElement("div");
+        overlay.className = "custom-modal-overlay";
+        const cancelText = currentLang === "vi" ? "Hủy" : "Cancel";
+        const confirmText = currentLang === "vi" ? "Xóa vĩnh viễn" : "Delete permanently";
+        const titleText = currentLang === "vi" ? "Xác nhận xóa" : "Confirm Delete";
+
+        overlay.innerHTML = `
+          <div class="custom-modal">
+            <div class="custom-modal-title">${titleText}</div>
+            <div class="custom-modal-text">${message}</div>
+            <div class="custom-modal-buttons">
+              <button class="custom-modal-btn btn-cancel">${cancelText}</button>
+              <button class="custom-modal-btn btn-confirm" style="background:#e53935;">${confirmText}</button>
+            </div>
+          </div>
+        `;
+        document.body.appendChild(overlay);
+        setTimeout(() => overlay.classList.add("active"), 10);
+        const cleanup = (result) => {
+          overlay.classList.remove("active");
+          setTimeout(() => { overlay.remove(); resolve(result); }, 300);
+        };
+        overlay.querySelector(".btn-cancel").addEventListener("click", () => cleanup(false));
+        overlay.querySelector(".btn-confirm").addEventListener("click", () => cleanup(true));
+      });
+    }
+
+    function updateUI() {
+      const t = i18n[currentLang];
+      document.getElementById("ui-title").innerText = t.title;
+      document.getElementById("ui-subtitle").innerText = t.subtitle;
+      document.getElementById("navTabWrite").innerText = t.tabWrite;
+      document.getElementById("navTabFeed").innerText = t.tabFeed;
+      document.getElementById("navTabArchive").innerText = t.tabArchive;
+      document.getElementById("navTabAdmin").innerText = t.tabAdmin;
+      document.getElementById("langBtn").innerText = currentLang === "vi" ? "EN" : "VI";
+      checkAuth();
+      
+      const currentActiveTab = document.getElementById("tabUsersBtn").classList.contains("active") ? "users" : "poems";
+      if (currentActiveTab === "users") loadUsers();
+      else loadPoems();
+    }
+
+    function checkAuth() {
+      const token = localStorage.getItem("access_token");
+      const authStatusArea = document.getElementById("authStatusArea");
+      const t = i18n[currentLang];
+      const navTabArchive = document.getElementById("navTabArchive");
+
+      if (token) {
+        try {
+          const payload = JSON.parse(atob(token.split('.')[1]));
+          const username = payload.sub || "Admin";
+          authStatusArea.innerHTML = `
+            ${t.welcome}, <strong>${username}</strong> | 
+            <a href="#" onclick="handleLogout(event)" style="color: var(--text-main); font-weight: 600; text-decoration: none; border-bottom: 1px dashed var(--text-main);">${t.logout}</a>
+          `;
+          if (navTabArchive) navTabArchive.style.display = "inline-block";
+        } catch (e) {
+          localStorage.removeItem("access_token");
+          window.location.replace("/login");
+        }
+      }
+    }
+
+    function handleLogout(event) {
+      if (event) event.preventDefault();
+      localStorage.removeItem("access_token");
+      window.location.replace("/login");
+    }
+
+    function switchTab(tab) {
+      const uBtn = document.getElementById("tabUsersBtn");
+      const pBtn = document.getElementById("tabPoemsBtn");
+      const uPanel = document.getElementById("usersPanel");
+      const pPanel = document.getElementById("poemsPanel");
+
+      if (tab === "users") {
+        uBtn.classList.add("active");
+        pBtn.classList.remove("active");
+        uPanel.style.display = "block";
+        pPanel.style.display = "none";
+        loadUsers();
+      } else {
+        pBtn.classList.add("active");
+        uBtn.classList.remove("active");
+        pPanel.style.display = "block";
+        uPanel.style.display = "none";
+        loadPoems();
+      }
+    }
+
+    async function loadUsers() {
+      const tbody = document.getElementById("usersTableBody");
+      const t = i18n[currentLang];
+      tbody.innerHTML = `<tr><td colspan="6" class="empty-state">${t.loading}</td></tr>`;
+
+      try {
+        const res = await fetch(`${API_URL}/admin/users`, {
+          headers: { "Authorization": `Bearer ${token}` }
+        });
+        if (!res.ok) throw new Error("Fetch error");
+        const users = await res.json();
+
+        if (users.length === 0) {
+          tbody.innerHTML = `<tr><td colspan="6" class="empty-state">No users registered yet.</td></tr>`;
+          return;
+        }
+
+        let html = "";
+        users.forEach(u => {
+          const date = new Date(u.created_at).toLocaleDateString(currentLang === "vi" ? "vi-VN" : "en-US");
+          const roleBadge = u.is_admin ? '<span class="badge badge-admin">Admin</span>' : '<span class="badge badge-user">User</span>';
+          html += `
+            <tr>
+              <td><strong>${u.id}</strong></td>
+              <td>${u.username}</td>
+              <td>${u.email}</td>
+              <td>${roleBadge}</td>
+              <td>${u.poem_count} bài viết</td>
+              <td>${date}</td>
+            </tr>
+          `;
+        });
+        tbody.innerHTML = html;
+      } catch (err) {
+        tbody.innerHTML = `<tr><td colspan="6" class="empty-state" style="color:#d84315;">${t.errConn}</td></tr>`;
+      }
+    }
+
+    async function loadPoems() {
+      const tbody = document.getElementById("poemsTableBody");
+      const t = i18n[currentLang];
+      tbody.innerHTML = `<tr><td colspan="6" class="empty-state">${t.loading}</td></tr>`;
+
+      try {
+        const res = await fetch(`${API_URL}/admin/poems`, {
+          headers: { "Authorization": `Bearer ${token}` }
+        });
+        if (!res.ok) throw new Error("Fetch error");
+        const poems = await res.json();
+
+        if (poems.length === 0) {
+          tbody.innerHTML = `<tr><td colspan="6" class="empty-state">No poems on database.</td></tr>`;
+          return;
+        }
+
+        let html = "";
+        poems.forEach(p => {
+          const date = new Date(p.created_at).toLocaleDateString(currentLang === "vi" ? "vi-VN" : "en-US");
+          const statusBadge = p.is_public ? '<span class="badge badge-public">Trình làng</span>' : '<span class="badge badge-private">Riêng tư</span>';
+          const safeContent = p.content.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+          html += `
+            <tr id="poem-row-${p.id}">
+              <td><strong>${p.id}</strong></td>
+              <td><strong>${p.author}</strong></td>
+              <td><div class="poem-preview">${safeContent}</div></td>
+              <td>${statusBadge}</td>
+              <td>${date}</td>
+              <td>
+                <button class="btn-action-delete" onclick="deletePoemByAdmin(${p.id})">${t.deleteBtnText}</button>
+              </td>
+            </tr>
+          `;
+        });
+        tbody.innerHTML = html;
+      } catch (err) {
+        tbody.innerHTML = `<tr><td colspan="6" class="empty-state" style="color:#d84315;">${t.errConn}</td></tr>`;
+      }
+    }
+
+    async function deletePoemByAdmin(poemId) {
+      const t = i18n[currentLang];
+      const confirmed = await showConfirm(t.confirmDeletePoem);
+      if (!confirmed) return;
+
+      try {
+        const res = await fetch(`${API_URL}/admin/poems/${poemId}`, {
+          method: "DELETE",
+          headers: { "Authorization": `Bearer ${token}` }
+        });
+        if (res.ok) {
+          showToast(t.toastDeleted, "success");
+          const row = document.getElementById(`poem-row-${poemId}`);
+          if (row) {
+            row.style.opacity = "0.4";
+            row.querySelector("button").disabled = true;
+            row.querySelector("button").innerText = "Deleted";
+            row.querySelector("button").style.background = "#9e9e9e";
+          }
+        } else {
+          showToast("Failed to delete poem.", "error");
+        }
+      } catch (err) {
+        showToast(t.errServerConn, "error");
+      }
+    }
+
+    // Khởi tạo
+    updateUI();
+  </script>
+</body>
+
+</html>

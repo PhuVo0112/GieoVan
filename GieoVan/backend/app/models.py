@@ -12,6 +12,7 @@ class User(SQLModel, table=True):
     username: str = Field(index=True, unique=True, nullable=False)
     email: str = Field(unique=True, nullable=False)
     hashed_password: str = Field(nullable=False)
+    is_admin: bool = Field(default=False)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     poems: List["Poem"] = Relationship(back_populates="author")

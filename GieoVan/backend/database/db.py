@@ -23,14 +23,47 @@ else:
 
 def init_db():
     if engine:
+        from sqlmodel import select
+        from backend.app.models import User
+        from backend.app.auth import get_password_hash
+        
         SQLModel.metadata.create_all(engine)
         with Session(engine) as session:
             try:
                 session.execute(text('ALTER TABLE "user" ADD COLUMN IF NOT EXISTS hashed_password VARCHAR'))
+            except Exception as e:
+                logger.warning(f"Failed to migrate hashed_password (might already exist): {e}")
+                
+            try:
                 session.execute(text('ALTER TABLE "poem" ADD COLUMN IF NOT EXISTS is_public BOOLEAN DEFAULT FALSE'))
+            except Exception as e:
+                logger.warning(f"Failed to migrate is_public (might already exist): {e}")
+                
+            try:
+                session.execute(text('ALTER TABLE "user" ADD COLUMN IF NOT EXISTS is_admin BOOLEAN DEFAULT FALSE'))
+            except Exception as e:
+                logger.warning(f"Failed to migrate is_admin (might already exist): {e}")
+                
+            try:
                 session.commit()
             except Exception as e:
-                logger.error(f"Failed to migrate database (ensure hashed_password exists): {e}")
+                logger.error(f"Failed to commit database migrations: {e}")
+                
+            try:
+                stmt = select(User).where(User.username == "admin")
+                admin_user = session.exec(stmt).first()
+                if not admin_user:
+                    new_admin = User(
+                        username="admin",
+                        email="admin@gieovan.com",
+                        hashed_password=get_password_hash("admin123"),
+                        is_admin=True
+                    )
+                    session.add(new_admin)
+                    session.commit()
+                    logger.info("Default admin user seeded successfully.")
+            except Exception as e:
+                logger.error(f"Failed to seed default admin user: {e}", exc_info=True)
     else:
         logger.warning("init_db skipped: database engine is not initialized.")
 
