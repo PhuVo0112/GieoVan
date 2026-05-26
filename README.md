@@ -1,5 +1,5 @@
 
-# GieoVần - Mạng xã hội Thơ ca & Rap Lyrics tích hợp Trợ lý AI
+# GieoVần - Mạng xã hội Thơ ca & Rap Lyrics tích hợp Trợ lý AI 
 
 > **English Version Notice:** Scroll down to the bottom half of this document to read the English documentation.
 
