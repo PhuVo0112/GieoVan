@@ -11,6 +11,8 @@
 
 Nền tảng tôn vinh giá trị chất xám nghệ thuật theo phong cách product của GitHub: nói không với các nút like/tim tương tác drama vô tri, tập trung gắn kết cộng đồng thông qua hệ thống **thả Star** độc bản cho các tác phẩm.
 
+Link trải nghiệm sản phẩm:
+https://gieovan.onrender.com/
 ---
 
 ## ⚡ 2. Bảng tính năng chuẩn mạng xã hội (Feature Matrix)
